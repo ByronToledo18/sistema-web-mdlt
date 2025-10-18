@@ -42,7 +42,7 @@ importers:
         specifier: latest
         version: 2.0.0
       '@vercel/postgres':
-        specifier: latest
+        specifier: 0.10.0
         version: 0.10.0
       bcryptjs:
         specifier: latest
@@ -3373,7 +3373,7 @@ snapshots:
 
   '@types/pg@8.11.6':
     dependencies:
-      '@types/node': 22.0.0
+      '@types/node': 22.18.11
       pg-protocol: 1.10.3
       pg-types: 4.1.0
 

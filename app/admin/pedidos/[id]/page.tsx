@@ -22,9 +22,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Plus, Pencil, Trash2, DollarSign } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { BackButton } from "@/components/ui/back-button"
-import { sql } from "@vercel/postgres"
-import type { NextRequest } from "next/server"
-import { requireAuth } from "@/lib/auth"
 
 interface Pedido {
   id: number
@@ -1084,26 +1081,4 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
       </div>
     </div>
   )
-}
-
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    await requireAuth()
-    const { id } = params
-
-    const pedidoResult = await sql`
-      SELECT p.id, p.codigo, p.cliente_id, p.estado, p.fecha_creacion, p.total, p.notas,
-             p.created_at, p.updated_at,
-             c.nombre as cliente_nombre, c.cedula as cliente_cedula, c.telefono as cliente_telefono, 
-             c.email as cliente_email, c.direccion as cliente_direccion
-      FROM pedidos p
-      JOIN clientes c ON p.cliente_id = c.id
-      WHERE p.id = ${id}
-    `
-
-    // <rest of code here>
-  } catch (err) {
-    console.error("[v0] Error fetching pedido:", err)
-    return new Response("Error fetching pedido", { status: 500 })
-  }
 }
