@@ -1,0 +1,348 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Updated to Sophisticated Pink theme - professional yet feminine */
+:root {
+  /* Admin Theme - Sophisticated Dark with Muted Pink */
+  --admin-background: oklch(0.15 0.015 330);
+  --admin-foreground: oklch(0.98 0.005 330);
+  --admin-card: oklch(0.18 0.02 330);
+  --admin-card-foreground: oklch(0.98 0.005 330);
+  --admin-primary: oklch(0.55 0.12 340); /* Muted dusty rose */
+  --admin-primary-foreground: oklch(0.98 0.005 330);
+  --admin-secondary: oklch(0.42 0.08 320); /* Deep mauve */
+  --admin-secondary-foreground: oklch(0.98 0.005 330);
+  --admin-muted: oklch(0.25 0.02 330);
+  --admin-muted-foreground: oklch(0.65 0.03 330);
+  --admin-accent: oklch(0.65 0.1 350); /* Soft rose */
+  --admin-accent-foreground: oklch(0.15 0.015 330);
+  --admin-border: oklch(0.3 0.03 330);
+  --admin-input: oklch(0.2 0.02 330);
+  --admin-ring: oklch(0.55 0.12 340);
+
+  /* Catalog Theme - Sophisticated Light with Muted Pink */
+  --catalog-background: oklch(0.98 0.01 340); /* Soft off-white */
+  --catalog-foreground: oklch(0.25 0.03 340); /* Charcoal with pink undertone */
+  --catalog-card: oklch(1 0 0); /* Pure white */
+  --catalog-card-foreground: oklch(0.25 0.03 340);
+  --catalog-primary: oklch(0.55 0.12 340); /* Dusty rose - professional */
+  --catalog-primary-foreground: oklch(1 0 0);
+  --catalog-secondary: oklch(0.75 0.06 330); /* Soft blush */
+  --catalog-secondary-foreground: oklch(0.25 0.03 340);
+  --catalog-muted: oklch(0.92 0.015 340); /* Light gray-pink */
+  --catalog-muted-foreground: oklch(0.5 0.03 340); /* Medium gray */
+  --catalog-accent: oklch(0.65 0.1 350); /* Muted rose accent */
+  --catalog-accent-foreground: oklch(0.98 0.01 340);
+  --catalog-border: oklch(0.88 0.02 340); /* Subtle border */
+  --catalog-input: oklch(0.97 0.01 340);
+  --catalog-ring: oklch(0.55 0.12 340);
+
+  /* Default to admin theme */
+  --background: var(--admin-background);
+  --foreground: var(--admin-foreground);
+  --card: var(--admin-card);
+  --card-foreground: var(--admin-card-foreground);
+  --primary: var(--admin-primary);
+  --primary-foreground: var(--admin-primary-foreground);
+  --secondary: var(--admin-secondary);
+  --secondary-foreground: var(--admin-secondary-foreground);
+  --muted: var(--admin-muted);
+  --muted-foreground: var(--admin-muted-foreground);
+  --accent: var(--admin-accent);
+  --accent-foreground: var(--admin-accent-foreground);
+  --border: var(--admin-border);
+  --input: var(--admin-input);
+  --ring: var(--admin-ring);
+  --radius: 8px;
+
+  --popover: var(--admin-card);
+  --popover-foreground: var(--admin-card-foreground);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  /* Updated chart colors to match sophisticated pink theme */
+  --chart-1: oklch(0.55 0.12 340);
+  --chart-2: oklch(0.65 0.1 350);
+  --chart-3: oklch(0.5 0.1 320);
+  --chart-4: oklch(0.6 0.12 10);
+  --chart-5: oklch(0.58 0.11 330);
+
+  /* Updated sidebar colors */
+  --sidebar: oklch(0.18 0.02 330);
+  --sidebar-foreground: oklch(0.98 0.005 330);
+  --sidebar-primary: oklch(0.55 0.12 340);
+  --sidebar-primary-foreground: oklch(0.98 0.005 330);
+  --sidebar-accent: oklch(0.22 0.025 330);
+  --sidebar-accent-foreground: oklch(0.98 0.005 330);
+  --sidebar-border: oklch(0.3 0.03 330);
+  --sidebar-ring: oklch(0.55 0.12 340);
+}
+
+/* Updated dark mode to complement sophisticated pink theme */
+.dark {
+  --background: oklch(0.12 0.02 330); /* Even darker cosmic background */
+  --foreground: oklch(0.98 0.01 330);
+  --card: oklch(0.15 0.03 330);
+  --card-foreground: oklch(0.98 0.01 330);
+  --popover: oklch(0.15 0.03 330);
+  --popover-foreground: oklch(0.98 0.01 330);
+  --primary: oklch(0.7 0.28 340); /* Brighter pink for dark mode */
+  --primary-foreground: oklch(0.98 0.01 330);
+  --secondary: oklch(0.4 0.15 320);
+  --secondary-foreground: oklch(0.98 0.01 330);
+  --muted: oklch(0.22 0.03 330);
+  --muted-foreground: oklch(0.6 0.05 330);
+  --accent: oklch(0.78 0.22 350);
+  --accent-foreground: oklch(0.12 0.02 330);
+  --destructive: oklch(0.5 0.2 27.325);
+  --destructive-foreground: oklch(0.98 0.01 330);
+  --border: oklch(0.28 0.05 330);
+  --input: oklch(0.18 0.03 330);
+  --ring: oklch(0.7 0.28 340);
+  --chart-1: oklch(0.7 0.28 340);
+  --chart-2: oklch(0.78 0.22 350);
+  --chart-3: oklch(0.58 0.2 320);
+  --chart-4: oklch(0.73 0.24 10);
+  --chart-5: oklch(0.63 0.22 330);
+  --sidebar: oklch(0.15 0.03 330);
+  --sidebar-foreground: oklch(0.98 0.01 330);
+  --sidebar-primary: oklch(0.7 0.28 340);
+  --sidebar-primary-foreground: oklch(0.98 0.01 330);
+  --sidebar-accent: oklch(0.2 0.04 330);
+  --sidebar-accent-foreground: oklch(0.98 0.01 330);
+  --sidebar-border: oklch(0.28 0.05 330);
+  --sidebar-ring: oklch(0.7 0.28 340);
+}
+
+/* Apply catalog theme to catalog pages */
+.catalog-theme {
+  --background: var(--catalog-background);
+  --foreground: var(--catalog-foreground);
+  --card: var(--catalog-card);
+  --card-foreground: var(--catalog-card-foreground);
+  --primary: var(--catalog-primary);
+  --primary-foreground: var(--catalog-primary-foreground);
+  --secondary: var(--catalog-secondary);
+  --secondary-foreground: var(--catalog-secondary-foreground);
+  --muted: var(--catalog-muted);
+  --muted-foreground: var(--catalog-muted-foreground);
+  --accent: var(--catalog-accent);
+  --accent-foreground: var(--catalog-accent-foreground);
+  --border: var(--catalog-border);
+  --input: var(--catalog-input);
+  --ring: var(--catalog-ring);
+  --font-sans: "Nunito", "Nunito Fallback", sans-serif;
+}
+
+@theme inline {
+  /* Updated font configuration - Geist for admin, Nunito for catalog */
+  --font-sans: "Geist", "Geist Fallback";
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
+  --font-catalog: "Nunito", "Nunito Fallback", sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(0.5rem - 4px);
+  --radius-md: calc(0.5rem - 2px);
+  --radius-lg: 0.5rem;
+  --radius-xl: calc(0.5rem + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Enhanced transitions for sophisticated theme */
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+
+  /* Enhanced hover effects for sophisticated pink theme */
+  button,
+  a,
+  [role="button"] {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  button:hover,
+  a:hover,
+  [role="button"]:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+  }
+
+  button:active,
+  a:active,
+  [role="button"]:active {
+    transform: translateY(0);
+  }
+}
+
+/* Added cosmic glow effect for interactive elements */
+@keyframes cosmicGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(255, 105, 180, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 105, 180, 0.5);
+  }
+}
+
+.cosmic-glow {
+  animation: cosmicGlow 3s ease-in-out infinite;
+}
+
+/* Custom animations for cards and interactive elements */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Updated shimmer effect with pink tones */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(to right, transparent 0%, rgba(255, 105, 180, 0.2) 50%, transparent 100%);
+  background-size: 1000px 100%;
+}
+
+/* Enhanced card hover effects for sophisticated theme */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(255, 105, 180, 0.3);
+  border-color: var(--primary);
+}
+
+/* Floating animation for decorative elements */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Enhanced pulse animation with pink glow */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(255, 105, 180, 0.2);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(255, 105, 180, 0.4);
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Added starfield effect for sophisticated background */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.cosmic-stars {
+  position: relative;
+  overflow: hidden;
+}
+
+.cosmic-stars::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(2px 2px at 20% 30%, rgba(255, 105, 180, 0.4), transparent),
+    radial-gradient(2px 2px at 60% 70%, rgba(255, 182, 193, 0.3), transparent),
+    radial-gradient(1px 1px at 50% 50%, rgba(255, 105, 180, 0.5), transparent),
+    radial-gradient(1px 1px at 80% 10%, rgba(255, 182, 193, 0.4), transparent),
+    radial-gradient(2px 2px at 90% 60%, rgba(255, 105, 180, 0.3), transparent);
+  background-size: 200% 200%;
+  animation: twinkle 4s ease-in-out infinite;
+  pointer-events: none;
+}
