@@ -31,10 +31,9 @@ npm install
 \`\`\`
 
 3. Configurar variables de entorno:
-\`\`\`bash
-DATABASE_URL=your_neon_database_url
-JWT_SECRET=your_secret_key_here
-\`\`\`
+
+DATABASE_URL='postgresql://neondb_owner:npg_4xhzjGsdJUf2@ep-aged-violet-adu7nk42-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+
 
 4. Ejecutar migraciones de base de datos:
 - Ir a la carpeta "Scripts"
@@ -42,11 +41,9 @@ JWT_SECRET=your_secret_key_here
 - Ejecutar `002-seed-data.sql`
 
 5. Iniciar el servidor de desarrollo:
-\`\`\`bash
 npm run dev
-\`\`\`
 
-## 👤 Credenciales por Defecto
+## Credenciales por Defecto
 
 - **Email**: admin@elmundodelastutus.com
 - **Contraseña**: Admin123!
@@ -55,7 +52,6 @@ npm run dev
 
 ## Estructura del Proyecto
 
-\`\`\`
 ├── app/
 │   ├── api/
 │   │   └── auth/          # Endpoints de autenticación
@@ -69,18 +65,17 @@ npm run dev
 │   ├── 001-create-tables.sql
 │   └── 002-seed-data.sql
 └── middleware.ts          # Protección de rutas
-\`\`\`
 
 ## Plan de Desarrollo (8 Semanas)
 
-- ✅ **Semana 1**: Setup base, DB, Auth JWT
-- ⏳ **Semana 2**: Módulo Clientes + Pedidos
-- ⏳ **Semana 3**: Productos/Servicios + Items
-- ⏳ **Semana 4**: Pagos + Consolidación
-- ⏳ **Semana 5**: Envíos + Servientrega
-- ⏳ **Semana 6**: Roles y Soporte Técnico
-- ⏳ **Semana 7**: Catálogo Web + WhatsApp
-- ⏳ **Semana 8**: Estabilización + Demo
+- **Semana 1**: Setup base, DB, Auth JWT
+- **Semana 2**: Módulo Clientes + Pedidos
+- **Semana 3**: Productos/Servicios + Items
+- **Semana 4**: Pagos + Consolidación
+- **Semana 5**: Envíos + Servientrega
+- **Semana 6**: Roles y Soporte Técnico
+- **Semana 7**: Catálogo Web + WhatsApp
+- **Semana 8**: Estabilización + Demo
 
 ## Roles de Usuario
 
