@@ -2,7 +2,7 @@
 
 Sistema de gestión integral para el emprendimiento "El Mundo de las Tutus", especializado en confección y comercialización de tutús y prendas personalizadas.
 
-## 🚀 Características
+## Características
 
 - **Gestión de Pedidos**: Sistema de seguimiento con ID único (TUTU-YYYY-####)
 - **Control de Inventario**: Productos y servicios con precios variables
@@ -11,13 +11,13 @@ Sistema de gestión integral para el emprendimiento "El Mundo de las Tutus", esp
 - **Envíos**: Integración con Servientrega
 - **Autenticación**: Sistema JWT con 3 roles (Administrador, Asistente, Soporte)
 
-## 📋 Requisitos Previos
+## Requisitos Previos
 
 - Node.js 18+
 - PostgreSQL (Neon)
 - Cuenta de Vercel (para deployment)
 
-## 🛠️ Instalación
+## Instalación
 
 1. Clonar el repositorio:
 \`\`\`bash
@@ -37,7 +37,7 @@ JWT_SECRET=your_secret_key_here
 \`\`\`
 
 4. Ejecutar migraciones de base de datos:
-- Ir a la sección "Scripts" en v0
+- Ir a la carpeta "Scripts"
 - Ejecutar `001-create-tables.sql`
 - Ejecutar `002-seed-data.sql`
 
@@ -51,9 +51,9 @@ npm run dev
 - **Email**: admin@elmundodelastutus.com
 - **Contraseña**: Admin123!
 
-⚠️ **IMPORTANTE**: Cambiar estas credenciales en producción.
+**IMPORTANTE**: Cambiar estas credenciales en producción.
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 \`\`\`
 ├── app/
@@ -71,7 +71,7 @@ npm run dev
 └── middleware.ts          # Protección de rutas
 \`\`\`
 
-## 🗓️ Plan de Desarrollo (8 Semanas)
+## Plan de Desarrollo (8 Semanas)
 
 - ✅ **Semana 1**: Setup base, DB, Auth JWT
 - ⏳ **Semana 2**: Módulo Clientes + Pedidos
@@ -82,25 +82,19 @@ npm run dev
 - ⏳ **Semana 7**: Catálogo Web + WhatsApp
 - ⏳ **Semana 8**: Estabilización + Demo
 
-## 🔐 Roles de Usuario
+## Roles de Usuario
 
 1. **Administrador**: Acceso completo al sistema
 2. **Asistente**: Gestión operativa de pedidos
 3. **Soporte Técnico**: Mantenimiento y auditoría
 
-## 📊 Base de Datos
+## Base de Datos
 
-El sistema utiliza PostgreSQL con las siguientes tablas principales:
+El sistema utiliza PostgreSQL con NeonBase con las siguientes tablas principales:
 - roles, usuarios, clientes
 - productos, servicios, pedidos, pedido_items
 - pagos, envios, servientrega_cuenta, servientrega_detalle
 - nomina_mov
-
-## 🤝 Contribución
-
-Este es un proyecto privado para "El Mundo de las Tutus".
-
-## 📄 Licencia
 
 Propietario: El Mundo de las Tutus
 \`\`\`
