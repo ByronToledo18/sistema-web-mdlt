@@ -92,4 +92,3 @@ El sistema utiliza PostgreSQL con NeonBase con las siguientes tablas principales
 - nomina_mov
 
 Propietario: El Mundo de las Tutus
-\`\`\`
