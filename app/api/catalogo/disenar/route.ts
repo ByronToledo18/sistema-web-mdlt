@@ -45,10 +45,10 @@ export async function POST(request: NextRequest) {
 
     const imagenBuffer = await generarImagenDiseno(descripcion.trim())
 
-    const filename = `disenos/${cliente.id}-${Date.now()}.png`
+    const filename = `disenos/${cliente.id}-${Date.now()}.jpg`
     const blob = await put(filename, imagenBuffer, {
       access: "public",
-      contentType: "image/png",
+      contentType: "image/jpeg",
     })
 
     const result = await sql`
