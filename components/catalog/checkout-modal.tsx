@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -191,17 +192,30 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-50" onClick={handleClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-card rounded-lg shadow-2xl z-50 max-h-[90vh] overflow-y-auto">
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/50 z-50 transition-opacity duration-[250ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+        onClick={handleClose}
+      />
+      <div
+        aria-hidden={!isOpen}
+        className={cn(
+          "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-card rounded-lg shadow-2xl z-50 max-h-[90vh] overflow-y-auto",
+          "transition-[opacity,transform] duration-[250ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-opacity",
+          isOpen
+            ? "opacity-100 scale-100"
+            : "opacity-0 scale-95 pointer-events-none motion-reduce:scale-100",
+        )}
+      >
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-foreground">
             {success ? "¡Pedido Recibido!" : "Finalizar Pedido"}
           </h2>
-          <Button variant="ghost" size="icon" onClick={handleClose}>
+          <Button variant="ghost" size="icon" onClick={handleClose} aria-label="Cerrar formulario de pedido">
             <X className="h-5 w-5 text-foreground" />
           </Button>
         </div>

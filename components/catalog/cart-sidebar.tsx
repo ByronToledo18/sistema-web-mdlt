@@ -75,7 +75,7 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
             <h2 className="text-xl font-semibold text-foreground">Carrito de Compras</h2>
             <Badge variant="secondary">{cart.items.length}</Badge>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar carrito">
             <X className="h-5 w-5 text-foreground" />
           </Button>
         </div>
@@ -114,6 +114,7 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
                         className="h-7 w-7 bg-background border-border hover:bg-accent"
                         onClick={() => handleUpdateQuantity(item.id, item.tipo, item.cantidad - 1)}
                         disabled={item.cantidad <= 1}
+                        aria-label={`Disminuir cantidad de ${item.nombre}`}
                       >
                         <Minus className="h-3 w-3 text-foreground" />
                       </Button>
@@ -124,6 +125,7 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
                         className="h-7 w-7 bg-background border-border hover:bg-accent"
                         onClick={() => handleUpdateQuantity(item.id, item.tipo, item.cantidad + 1)}
                         disabled={item.tipo === "producto" && item.stock !== undefined && item.cantidad >= item.stock}
+                        aria-label={`Aumentar cantidad de ${item.nombre}`}
                       >
                         <Plus className="h-3 w-3 text-foreground" />
                       </Button>
@@ -132,6 +134,7 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
                         size="icon"
                         className="h-7 w-7 ml-auto hover:bg-destructive/10"
                         onClick={() => handleRemove(item.id, item.tipo)}
+                        aria-label={`Eliminar ${item.nombre} del carrito`}
                       >
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </Button>

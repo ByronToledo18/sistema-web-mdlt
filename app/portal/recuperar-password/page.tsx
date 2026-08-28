@@ -48,7 +48,7 @@ export default function RecuperarPasswordPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Recuperar Contraseña</CardTitle>
           <CardDescription className="text-center">
-            Ingresa tu email y te enviaremos instrucciones para restablecer tu contraseña
+            Ingresa tu email y nuestro equipo te contactará por WhatsApp con un enlace para restablecer tu contraseña
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -56,8 +56,8 @@ export default function RecuperarPasswordPage() {
             <div className="space-y-4">
               <Alert>
                 <AlertDescription>
-                  ¡Solicitud enviada! Revisa tu correo electrónico para las instrucciones de recuperación. Si no ves el
-                  correo, revisa tu carpeta de spam.
+                  ¡Solicitud recibida! Si el email está registrado, nuestro equipo te va a contactar por WhatsApp con
+                  el enlace para restablecer tu contraseña.
                 </AlertDescription>
               </Alert>
               <Link href="/portal/login">

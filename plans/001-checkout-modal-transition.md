@@ -1,6 +1,6 @@
 # 001 — Add enter/exit transition to the checkout modal
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 6501b96
 - **Severity**: HIGH
 - **Category**: Physicality & origin / Interruptibility

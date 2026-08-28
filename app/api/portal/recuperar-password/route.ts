@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
+import { generateWhatsAppLink } from "@/lib/whatsapp"
 import crypto from "crypto"
 
 export async function POST(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar cliente
     const result = await sql`
-      SELECT id, nombre, email
+      SELECT id, nombre, email, telefono
       FROM clientes
       WHERE email = ${email}
     `
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     const cliente = result[0]
 
-    // Generar token de reseteo
+    // Generar token de reseteo (aleatoriedad criptográfica, no adivinable)
     const resetToken = crypto.randomBytes(32).toString("hex")
     const resetTokenExpiry = new Date(Date.now() + 3600000) // 1 hora
 
@@ -35,20 +36,30 @@ export async function POST(request: NextRequest) {
       WHERE id = ${cliente.id}
     `
 
-    // TODO: Enviar email con el link de reseteo
-    // Por ahora, crear un ticket de soporte
+    // No hay servicio de email configurado en este proyecto. El canal real
+    // del negocio con sus clientes es WhatsApp (ver lib/whatsapp.ts) - se
+    // crea un ticket de soporte con un enlace de WhatsApp pre-armado para
+    // que el equipo lo reenvíe al cliente. El link de reseteo NUNCA se
+    // loguea ni se devuelve en la respuesta de este endpoint - solo vive en
+    // el ticket, visible únicamente para soporte/administrador.
+    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin}/portal/reset-password?token=${resetToken}`
+    const mensajeWhatsApp = `Hola ${cliente.nombre}, aquí está tu enlace para restablecer tu contraseña (válido por 1 hora): ${resetUrl}`
+    const whatsappLink = cliente.telefono ? generateWhatsAppLink(cliente.telefono, mensajeWhatsApp) : null
+
     await sql`
-      INSERT INTO soporte_tickets (tipo, prioridad, descripcion, estado, email_contacto)
+      INSERT INTO tickets (tipo, prioridad, descripcion, estado, email_contacto)
       VALUES (
         'reseteo_contraseña',
         'alta',
-        ${`Solicitud de reseteo de contraseña para: ${cliente.nombre} (${cliente.email})\n\nToken: ${resetToken}`},
-        'abierto',
+        ${`Solicitud de reseteo de contraseña para: ${cliente.nombre} (${cliente.email}).\n\n${
+          whatsappLink
+            ? `Reenviar por WhatsApp: ${whatsappLink}`
+            : `El cliente no tiene teléfono registrado. Enlace de reseteo: ${resetUrl}`
+        }`},
+        'pendiente',
         ${cliente.email}
       )
     `
-
-    console.log(`[v0] Password reset token for ${email}: ${resetToken}`)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

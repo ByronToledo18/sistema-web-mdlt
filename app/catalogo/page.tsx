@@ -151,6 +151,7 @@ export default function CatalogoPage() {
                     size="icon"
                     className="relative bg-card text-foreground hover:bg-accent"
                     onClick={() => setCartOpen(true)}
+                    aria-label="Abrir carrito de compras"
                   >
                     <ShoppingCart className="h-5 w-5" />
                     {cartCount > 0 && (
@@ -214,6 +215,7 @@ export default function CatalogoPage() {
                     size="icon"
                     className="relative bg-card text-foreground hover:bg-accent"
                     onClick={() => setCartOpen(true)}
+                    aria-label="Abrir carrito de compras"
                   >
                     <ShoppingCart className="h-5 w-5" />
                     {cartCount > 0 && (
