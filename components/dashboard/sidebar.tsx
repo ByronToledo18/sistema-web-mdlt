@@ -74,7 +74,6 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
       href: "/admin/nomina",
       icon: DollarSign,
       roles: ["administrador"],
-      disabled: true,
     },
     {
       title: "Soporte",
@@ -108,25 +107,21 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
           {filteredNavItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
-            const isDisabled = item.disabled
 
             return (
               <Link
                 key={item.href}
-                href={isDisabled ? "#" : item.href}
+                href={item.href}
                 onClick={() => onClose?.()}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  isDisabled && "cursor-not-allowed opacity-50",
                 )}
-                aria-disabled={isDisabled}
               >
                 <Icon className="h-5 w-5" />
                 {item.title}
-                {isDisabled && <span className="ml-auto text-xs">(Próximamente)</span>}
               </Link>
             )
           })}

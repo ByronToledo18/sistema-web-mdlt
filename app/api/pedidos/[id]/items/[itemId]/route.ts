@@ -4,10 +4,10 @@ import { requireAuth } from "@/lib/auth"
 import { actualizarTotalPedido } from "@/lib/pedidos"
 
 // PUT - Actualizar item
-export async function PUT(request: NextRequest, { params }: { params: { id: string; itemId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; itemId: string }> }) {
   try {
     const user = await requireAuth(["administrador", "asistente"])
-    const { id: pedidoId, itemId } = params
+    const { id: pedidoId, itemId } = await params
     const { cantidad, precio_unitario, descripcion } = await request.json()
 
     const pedidoResult = await sql`SELECT estado FROM pedidos WHERE id = ${pedidoId}`
@@ -63,10 +63,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar item
-export async function DELETE(request: NextRequest, { params }: { params: { id: string; itemId: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; itemId: string }> }) {
   try {
     const user = await requireAuth(["administrador", "asistente"])
-    const { id: pedidoId, itemId } = params
+    const { id: pedidoId, itemId } = await params
 
     const pedidoResult = await sql`SELECT estado FROM pedidos WHERE id = ${pedidoId}`
     if (pedidoResult.length === 0) {

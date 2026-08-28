@@ -1,19 +1,29 @@
 import { sql, executeQuery } from "./db"
 
-// Generar número de guía simulado (en producción se integraría con API de Servientrega)
+// Generar número de guía interno de seguimiento (no es la guía real de
+// Servientrega - ver app/admin/envios/page.tsx, que ahora pide al admin
+// ingresar la guía real generada manualmente en el portal de Servientrega).
+// Usa una secuencia de Postgres real (nextval es atómico) en vez de
+// SELECT MAX(...)+1, que tenía una condición de carrera.
 export async function generarNumeroGuia(): Promise<string> {
   const year = new Date().getFullYear()
   const prefix = `SER-${year}-`
+  const seqName = `envio_guia_seq_${year}`
 
-  const result = await executeQuery(
-    `SELECT MAX(CAST(SUBSTRING(guia FROM 10) AS INTEGER)) as max_numero
-     FROM envios
-     WHERE guia LIKE $1`,
-    [`${prefix}%`],
-  )
+  const exists = await executeQuery(`SELECT to_regclass($1) as reg`, [seqName])
+  if (!exists[0]?.reg) {
+    const maxResult = await executeQuery(
+      `SELECT MAX(CAST(SUBSTRING(guia FROM 10) AS INTEGER)) as max_numero
+       FROM envios
+       WHERE guia LIKE $1`,
+      [`${prefix}%`],
+    )
+    const startAt = (maxResult[0]?.max_numero ? Number.parseInt(maxResult[0].max_numero) : 0) + 1
+    await executeQuery(`CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${startAt}`, [])
+  }
 
-  const lastNumber = result[0]?.max_numero ? Number.parseInt(result[0].max_numero) : 0
-  const nextNumber = lastNumber + 1
+  const result = await executeQuery(`SELECT nextval($1::regclass) as siguiente`, [seqName])
+  const nextNumber = Number(result[0].siguiente)
 
   return `${prefix}${nextNumber.toString().padStart(6, "0")}`
 }

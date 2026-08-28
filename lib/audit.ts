@@ -40,8 +40,18 @@ export async function createAuditLog(params: CreateAuditLogParams): Promise<void
       )
     `
   } catch (error) {
-    console.error("[v0] Error creating audit log:", error)
-    // No lanzamos error para no interrumpir el flujo principal
+    // No lanzamos error para no interrumpir el flujo principal (una falla de
+    // auditoría no debe bloquear la operación real del usuario), pero se
+    // registra con todo el contexto de lo que se perdió para poder
+    // reconstruirlo manualmente si hace falta - antes solo se logueaba el
+    // error de BD, sin decir qué acción/módulo/usuario quedó sin auditar.
+    console.error("[v0] AUDIT LOG FALLIDO - se perdió este registro de auditoría:", {
+      usuario_id: params.usuario_id ?? null,
+      accion: params.accion,
+      modulo: params.modulo,
+      descripcion: params.descripcion ?? null,
+      error: error instanceof Error ? error.message : error,
+    })
   }
 }
 

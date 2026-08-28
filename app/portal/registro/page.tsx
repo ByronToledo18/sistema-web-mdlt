@@ -15,6 +15,7 @@ export default function RegistroPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     nombre: "",
+    cedula: "",
     email: "",
     telefono: "",
     direccion: "",
@@ -49,6 +50,7 @@ export default function RegistroPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nombre: formData.nombre,
+          cedula: formData.cedula,
           email: formData.email,
           telefono: formData.telefono,
           direccion: formData.direccion,
@@ -95,6 +97,19 @@ export default function RegistroPage() {
                 placeholder="Tu nombre completo"
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cedula">Cédula *</Label>
+              <Input
+                id="cedula"
+                type="text"
+                placeholder="Tu número de cédula"
+                value={formData.cedula}
+                onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
                 required
                 disabled={loading}
               />

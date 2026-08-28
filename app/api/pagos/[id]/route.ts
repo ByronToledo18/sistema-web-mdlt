@@ -3,10 +3,10 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener pago
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador", "asistente"])
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`
       SELECT p.*, ped.codigo as pedido_codigo, c.nombre as cliente_nombre
@@ -28,10 +28,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar pago
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`DELETE FROM pagos WHERE id = ${id} RETURNING *`
 

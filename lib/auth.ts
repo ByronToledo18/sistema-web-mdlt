@@ -1,7 +1,14 @@
 import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
+// En producción, JWT_SECRET debe venir de una variable de entorno real - un
+// fallback silencioso a un valor conocido permitiría forjar tokens válidos.
+// En desarrollo se permite el fallback para no bloquear `npm run dev` sin .env.local.
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("JWT_SECRET no está configurado. Defínelo como variable de entorno antes de desplegar.")
+}
+
+export const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "dev-only-insecure-secret-do-not-deploy")
 
 export interface UserPayload {
   id: number
@@ -9,6 +16,40 @@ export interface UserPayload {
   nombre: string
   rol: string
   rol_id: number
+}
+
+export interface ClientePayload {
+  id: number
+  email: string
+  nombre: string
+}
+
+// Obtener cliente del portal autenticado desde la cookie portal-auth-token
+export async function getClienteFromToken(): Promise<ClientePayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get("portal-auth-token")
+
+  if (!token) {
+    return null
+  }
+
+  try {
+    const verified = await jwtVerify(token.value, JWT_SECRET)
+    return verified.payload.cliente as ClientePayload
+  } catch (error) {
+    return null
+  }
+}
+
+// Middleware helper para proteger rutas del portal de clientes
+export async function requirePortalAuth(): Promise<ClientePayload> {
+  const cliente = await getClienteFromToken()
+
+  if (!cliente) {
+    throw new Error("No autenticado")
+  }
+
+  return cliente
 }
 
 // Generar token JWT

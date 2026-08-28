@@ -1,12 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
+import { generarNumeroGuia } from "@/lib/envios"
 
 // GET - Obtener pedido con detalles
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth()
-    const { id } = params
+    const { id } = await params
 
     const pedidoResult = await sql`
       SELECT p.id, p.codigo, p.cliente_id, p.estado, p.fecha_creacion, p.total, p.notas,
@@ -38,10 +39,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Actualizar estado del pedido
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["administrador", "asistente"])
-    const { id } = params
+    const { id } = await params
     const { estado } = await request.json()
 
     if (!estado) {
@@ -99,13 +100,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
           `
 
           if (Number.parseInt(existingShipments[0].count) === 0) {
-            const codigoEnvio = `SER-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`
+            // La tabla envios usa la columna `guia`, no `codigo` (bug real:
+            // esta inserción fallaba con "column codigo does not exist"
+            // cada vez que se cerraba un pedido con envío sin haber creado
+            // un envío explícito antes). Usa el mismo generador atómico que
+            // el resto del sistema.
+            const guia = await generarNumeroGuia()
 
             await sql`
-              INSERT INTO envios (pedido_id, codigo, estado, costo)
+              INSERT INTO envios (pedido_id, guia, fecha_envio, estado, costo)
               VALUES (
                 ${id},
-                ${codigoEnvio},
+                ${guia},
+                CURRENT_TIMESTAMP,
                 'pendiente',
                 ${shippingItems[0].precio_unitario}
               )
@@ -130,10 +137,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar pedido
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`DELETE FROM pedidos WHERE id = ${id} RETURNING *`
 

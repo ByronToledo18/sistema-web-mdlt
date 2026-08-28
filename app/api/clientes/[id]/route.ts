@@ -3,10 +3,10 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener un cliente por ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth()
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`SELECT * FROM clientes WHERE id = ${id}`
 
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Actualizar cliente
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador", "asistente"])
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     console.log("[v0] PUT clientes body:", JSON.stringify(body))
@@ -72,10 +72,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // POST - Habilitar/Deshabilitar cliente
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     const { estado } = body

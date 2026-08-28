@@ -28,7 +28,6 @@ export default function ClientePedidosPage() {
   const router = useRouter()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
-  const [clienteId, setClienteId] = useState<number | null>(null)
 
   useEffect(() => {
     checkAuth()
@@ -41,18 +40,16 @@ export default function ClientePedidosPage() {
         router.push("/portal/login")
         return
       }
-      const data = await response.json()
-      setClienteId(data.cliente.id)
-      fetchPedidos(data.cliente.id)
+      fetchPedidos()
     } catch (error) {
       console.error("[v0] Auth error:", error)
       router.push("/portal/login")
     }
   }
 
-  const fetchPedidos = async (id: number) => {
+  const fetchPedidos = async () => {
     try {
-      const response = await fetch(`/api/portal/pedidos?cliente_id=${id}`)
+      const response = await fetch("/api/portal/pedidos")
       if (response.ok) {
         const data = await response.json()
         setPedidos(data.pedidos || [])

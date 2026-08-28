@@ -3,10 +3,10 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener producto
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth()
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`SELECT * FROM productos WHERE id = ${id}`
 
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Actualizar producto
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
     const { sku, nombre, precio, stock, activo, imagen_url } = await request.json()
 
     if (!nombre || precio === undefined) {
@@ -59,10 +59,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar producto
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
 
     const usageCheck = await sql`
       SELECT COUNT(*) as count 

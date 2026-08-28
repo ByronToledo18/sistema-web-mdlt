@@ -3,7 +3,7 @@ import { requireAuth, hashPassword } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { createAuditLog } from "@/lib/audit"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["soporte", "administrador"])
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       UPDATE usuarios
       SET hash_password = ${hashedPassword},
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${params.id}
+      WHERE id = ${(await params).id}
     `
 
     // Registrar en auditoría
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       usuario_id: user.id,
       accion: "RESET_PASSWORD",
       modulo: "usuarios",
-      descripcion: `Contraseña reseteada para usuario ID ${params.id}`,
+      descripcion: `Contraseña reseteada para usuario ID ${(await params).id}`,
     })
 
     return NextResponse.json({

@@ -1,13 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { generatePedidoCodigo } from "@/lib/pedidos"
+import { getClienteFromToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const { cliente, items, metodoEntrega, direccionEnvio, ciudadEnvio, costoEnvio } = await request.json()
+    const clienteToken = await getClienteFromToken()
+    if (!clienteToken) {
+      return NextResponse.json({ error: "Debes iniciar sesión para realizar un pedido" }, { status: 401 })
+    }
 
-    if (!cliente.nombre || !cliente.cedula || !cliente.telefono || !cliente.email) {
-      return NextResponse.json({ error: "Nombre, cédula, teléfono y email son requeridos" }, { status: 400 })
+    const { cliente, items, metodoEntrega, direccionEnvio, ciudadEnvio } = await request.json()
+
+    if (!cliente?.nombre || !cliente?.cedula || !cliente?.telefono) {
+      return NextResponse.json({ error: "Nombre, cédula y teléfono son requeridos" }, { status: 400 })
     }
 
     if (metodoEntrega === "envio" && !cliente.direccion) {
@@ -18,44 +24,87 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "La ciudad de envío es requerida" }, { status: 400 })
     }
 
-    const cedulaExistente = await sql`
-      SELECT id FROM clientes WHERE cedula = ${cliente.cedula} LIMIT 1
+    if (!Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: "El pedido debe tener al menos un ítem" }, { status: 400 })
+    }
+
+    // El pedido siempre pertenece al cliente autenticado - nunca se busca/crea
+    // por cédula, para no permitir que un cliente logueado edite o secuestre
+    // la fila de otro cliente enviando una cédula ajena en el body.
+    const clienteId = clienteToken.id
+
+    await sql`
+      UPDATE clientes
+      SET nombre = ${cliente.nombre},
+          cedula = COALESCE(cedula, ${cliente.cedula}),
+          telefono = ${cliente.telefono},
+          direccion = ${cliente.direccion || null},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${clienteId}
     `
 
-    let clienteId: number
+    // Recalcular cada item contra el precio real en BD - nunca confiar en el
+    // precio que manda el cliente en el body (hallazgo de seguridad A).
+    const itemsConPrecioReal: { tipo: string; id: number; nombre: string; cantidad: number; precio: number }[] = []
+    for (const item of items) {
+      const cantidad = Number(item.cantidad)
+      if (!item.id || !item.tipo || !Number.isFinite(cantidad) || cantidad <= 0) {
+        return NextResponse.json({ error: "Ítem de pedido inválido" }, { status: 400 })
+      }
 
-    if (cedulaExistente.length > 0) {
-      clienteId = cedulaExistente[0].id
+      if (item.tipo === "producto") {
+        const productoResult = await sql`
+          SELECT nombre, precio, stock FROM productos WHERE id = ${item.id} AND activo = true
+        `
+        if (productoResult.length === 0) {
+          return NextResponse.json({ error: `Producto no encontrado o inactivo` }, { status: 400 })
+        }
+        if (productoResult[0].stock < cantidad) {
+          return NextResponse.json({ error: `Stock insuficiente para ${productoResult[0].nombre}` }, { status: 400 })
+        }
+        itemsConPrecioReal.push({
+          tipo: "producto",
+          id: item.id,
+          nombre: productoResult[0].nombre,
+          cantidad,
+          precio: Number.parseFloat(productoResult[0].precio),
+        })
+      } else if (item.tipo === "servicio") {
+        const servicioResult = await sql`
+          SELECT nombre, precio_base FROM servicios WHERE id = ${item.id} AND activo = true
+        `
+        if (servicioResult.length === 0) {
+          return NextResponse.json({ error: `Servicio no encontrado o inactivo` }, { status: 400 })
+        }
+        itemsConPrecioReal.push({
+          tipo: "servicio",
+          id: item.id,
+          nombre: servicioResult[0].nombre,
+          cantidad,
+          precio: Number.parseFloat(servicioResult[0].precio_base),
+        })
+      } else {
+        return NextResponse.json({ error: "Tipo de ítem inválido" }, { status: 400 })
+      }
+    }
 
-      await sql`
-        UPDATE clientes
-        SET nombre = ${cliente.nombre},
-            telefono = ${cliente.telefono},
-            email = ${cliente.email || null},
-            direccion = ${cliente.direccion || null},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${clienteId}
+    // Recalcular el costo de envío contra tarifas_envio - nunca confiar en el
+    // costoEnvio que manda el cliente en el body.
+    let costoEnvioReal = 0
+    if (metodoEntrega === "envio") {
+      const tarifaResult = await sql`
+        SELECT costo FROM tarifas_envio WHERE ciudad = ${ciudadEnvio} AND activo = true LIMIT 1
       `
-    } else {
-      const nuevoCliente = await sql`
-        INSERT INTO clientes (nombre, cedula, telefono, email, direccion, activo)
-        VALUES (
-          ${cliente.nombre},
-          ${cliente.cedula},
-          ${cliente.telefono},
-          ${cliente.email || null},
-          ${cliente.direccion || null},
-          true
-        )
-        RETURNING id
-      `
-      clienteId = nuevoCliente[0].id
+      if (tarifaResult.length === 0) {
+        return NextResponse.json({ error: "No hay tarifa de envío configurada para esa ciudad" }, { status: 400 })
+      }
+      costoEnvioReal = Number.parseFloat(tarifaResult[0].costo)
     }
 
     const codigo = await generatePedidoCodigo()
 
-    const subtotal = items.reduce((sum: number, item: any) => sum + item.precio * item.cantidad, 0)
-    const total = metodoEntrega === "envio" ? subtotal + (costoEnvio || 0) : subtotal
+    const subtotal = itemsConPrecioReal.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
+    const total = metodoEntrega === "envio" ? subtotal + costoEnvioReal : subtotal
 
     const metodoEntregaTexto = metodoEntrega === "retiro" ? "Retiro en Tienda" : "Envío a Domicilio"
     let notas = `Método de entrega: ${metodoEntregaTexto}`
@@ -71,12 +120,12 @@ export async function POST(request: NextRequest) {
     const pedido = await sql`
       INSERT INTO pedidos (codigo, cliente_id, estado, total, notas, costo_envio, ciudad_envio)
       VALUES (
-        ${codigo}, 
-        ${clienteId}, 
-        'recibido', 
-        ${total}, 
+        ${codigo},
+        ${clienteId},
+        'recibido',
+        ${total},
         ${notas},
-        ${metodoEntrega === "envio" ? costoEnvio || 0 : 0},
+        ${costoEnvioReal},
         ${metodoEntrega === "envio" ? ciudadEnvio : null}
       )
       RETURNING *
@@ -84,17 +133,10 @@ export async function POST(request: NextRequest) {
 
     const pedidoId = pedido[0].id
 
-    for (const item of items) {
-      const subtotal = item.precio * item.cantidad
+    for (const item of itemsConPrecioReal) {
+      const itemSubtotal = item.precio * item.cantidad
 
       if (item.tipo === "producto") {
-        const stockCheck = await sql`
-          SELECT stock FROM productos WHERE id = ${item.id}
-        `
-        if (stockCheck.length === 0 || stockCheck[0].stock < item.cantidad) {
-          throw new Error(`Stock insuficiente para ${item.nombre}`)
-        }
-
         await sql`
           UPDATE productos
           SET stock = stock - ${item.cantidad}
@@ -113,12 +155,12 @@ export async function POST(request: NextRequest) {
           ${item.nombre},
           ${item.cantidad},
           ${item.precio},
-          ${subtotal}
+          ${itemSubtotal}
         )
       `
     }
 
-    if (metodoEntrega === "envio" && costoEnvio > 0) {
+    if (metodoEntrega === "envio" && costoEnvioReal > 0) {
       const envioServicio = await sql`
         SELECT id FROM servicios WHERE nombre = 'Envío' LIMIT 1
       `
@@ -134,8 +176,8 @@ export async function POST(request: NextRequest) {
             ${envioServicio[0].id},
             'Envío',
             1,
-            ${costoEnvio},
-            ${costoEnvio}
+            ${costoEnvioReal},
+            ${costoEnvioReal}
           )
         `
       }

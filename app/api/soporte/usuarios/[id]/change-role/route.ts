@@ -3,11 +3,11 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 import { createAuditLog } from "@/lib/audit"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["soporte", "administrador"])
     const { rol_id } = await request.json()
-    const userId = Number.parseInt(params.id)
+    const userId = Number.parseInt((await params).id)
 
     if (!rol_id) {
       return NextResponse.json({ error: "Rol requerido" }, { status: 400 })

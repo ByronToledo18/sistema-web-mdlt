@@ -3,11 +3,11 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // POST - Registrar pago a factura
-export async function POST(request: NextRequest, { params }: { params: { facturaId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ facturaId: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { facturaId } = params
+    const { facturaId } = await params
     const { monto, metodo, referencia, observacion } = await request.json()
 
     if (!monto || monto <= 0) {

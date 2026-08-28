@@ -1,10 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { verifyPassword } from "@/lib/auth"
+import { verifyPassword, JWT_SECRET } from "@/lib/auth"
 import { SignJWT } from "jose"
 import { cookies } from "next/headers"
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
 
 export async function POST(request: NextRequest) {
   try {

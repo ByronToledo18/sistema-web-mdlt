@@ -3,10 +3,10 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener servicio
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth()
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`SELECT * FROM servicios WHERE id = ${id}`
 
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Actualizar servicio
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
     const { nombre, unidad, precio_base, variable, activo, imagen_url } = await request.json()
 
     if (!nombre || precio_base === undefined) {
@@ -57,10 +57,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar servicio
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
 
     const usageCheck = await sql`
       SELECT COUNT(*) as count 

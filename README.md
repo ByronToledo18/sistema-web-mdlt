@@ -30,9 +30,12 @@ cd sistema-web-mdlt
 npm install
 \`\`\`
 
-3. Configurar variables de entorno:
+3. Configurar variables de entorno (crear `.env.local`, nunca commitear valores reales):
 
-DATABASE_URL='postgresql://neondb_owner:npg_4xhzjGsdJUf2@ep-aged-violet-adu7nk42-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+\`\`\`
+DATABASE_URL='postgresql://usuario:contraseña@host/basededatos?sslmode=require'
+JWT_SECRET='<valor aleatorio largo, distinto por ambiente>'
+\`\`\`
 
 
 4. Ejecutar migraciones de base de datos:
@@ -43,12 +46,15 @@ DATABASE_URL='postgresql://neondb_owner:npg_4xhzjGsdJUf2@ep-aged-violet-adu7nk42
 5. Iniciar el servidor de desarrollo:
 npm run dev
 
-## Credenciales por Defecto
+## Crear el usuario administrador
 
-- **Email**: admin@elmundodelastutus.com
-- **Contraseña**: Admin123!
+No hay credenciales por defecto. Ejecuta el siguiente script para crear (o resetear) los usuarios internos con una contraseña aleatoria generada en el momento:
 
-**IMPORTANTE**: Cambiar estas credenciales en producción.
+\`\`\`bash
+node --loader ts-node/esm scripts/create-admin.ts
+\`\`\`
+
+La contraseña se imprime una sola vez en la consola — guárdala de inmediato.
 
 ## Estructura del Proyecto
 

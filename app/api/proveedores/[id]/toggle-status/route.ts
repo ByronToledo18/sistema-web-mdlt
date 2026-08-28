@@ -3,11 +3,11 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // POST - Toggle proveedor status
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`
       UPDATE proveedores

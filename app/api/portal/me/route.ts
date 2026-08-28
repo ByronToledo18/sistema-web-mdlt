@@ -1,25 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { jwtVerify } from "jose"
-import { cookies } from "next/headers"
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
-
-async function getClienteFromToken() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("portal-auth-token")
-
-  if (!token) {
-    return null
-  }
-
-  try {
-    const verified = await jwtVerify(token.value, JWT_SECRET)
-    return verified.payload.cliente as { id: number; email: string; nombre: string }
-  } catch (error) {
-    return null
-  }
-}
+import { getClienteFromToken } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {

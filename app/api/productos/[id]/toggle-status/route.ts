@@ -4,10 +4,10 @@ import { requireAuth } from "@/lib/auth"
 import { createAuditLog } from "@/lib/audit"
 
 // POST - Alternar estado activo/inactivo del producto
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
 
     // Toggle the activo status
     const result = await sql`
@@ -24,13 +24,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const producto = result[0]
 
     // Create audit log
-    await createAuditLog(
-      user.id,
-      "productos",
-      Number.parseInt(id),
-      "update",
-      `Estado cambiado a ${producto.activo ? "activo" : "inactivo"}`,
-    )
+    await createAuditLog({
+      usuario_id: user.id,
+      accion: "update",
+      modulo: "productos",
+      descripcion: `Producto #${id}: estado cambiado a ${producto.activo ? "activo" : "inactivo"}`,
+    })
 
     return NextResponse.json({
       success: true,

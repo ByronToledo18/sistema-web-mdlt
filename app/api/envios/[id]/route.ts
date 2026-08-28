@@ -3,10 +3,10 @@ import { sql, executeQuery } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener envío
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador", "asistente"])
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`
       SELECT e.*, p.codigo as pedido_codigo, c.nombre as cliente_nombre, c.direccion as cliente_direccion
@@ -28,11 +28,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Actualizar envío
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["administrador", "asistente"])
-    const { id } = params
-    const { estado, costo } = await request.json()
+    const { id } = await params
+    const { estado, costo, guia } = await request.json()
 
     const currentEnvio = await sql`SELECT * FROM envios WHERE id = ${id}`
 
@@ -55,6 +55,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (costo !== undefined) {
       updates.push(`costo = $${paramIndex}`)
       values.push(costo)
+      paramIndex++
+    }
+
+    if (guia) {
+      // Reemplaza el número de guía interno (autogenerado al crear el envío)
+      // por la guía real que el admin generó manualmente en el portal de
+      // Servientrega - ver nota en lib/envios.ts sobre por qué no se genera
+      // automáticamente.
+      updates.push(`guia = $${paramIndex}`)
+      values.push(guia)
       paramIndex++
     }
 
@@ -125,10 +135,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar envío
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`DELETE FROM envios WHERE id = ${id} RETURNING *`
 

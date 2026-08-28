@@ -22,6 +22,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# graphify knowledge graph (regenerable; graphify-out/raw contains a copy of
+# the client meeting transcript, shouldn't live in git history)
+/graphify-out/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -108,7 +108,8 @@ const estadoEnvioLabels: Record<string, string> = {
   terminado: "Terminado",
 }
 
-export default function PedidoDetallePage({ params }: { params: { id: string } }) {
+export default function PedidoDetallePage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = use(paramsPromise)
   const router = useRouter()
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
@@ -127,6 +128,8 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
   const [userRole, setUserRole] = useState<string>("")
   const [totalPagado, setTotalPagado] = useState<number>(0)
   const [updatingEnvioEstado, setUpdatingEnvioEstado] = useState<number | null>(null)
+  const [factura, setFactura] = useState<{ id: number; numero_factura: string } | null>(null)
+  const [generandoFactura, setGenerandoFactura] = useState(false)
 
   const [itemForm, setItemForm] = useState({
     item_tipo: "producto",
@@ -153,7 +156,37 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
     fetchPagos()
     fetchEnvios()
     fetchUserRole()
+    fetchFactura()
   }, [params.id])
+
+  const fetchFactura = async () => {
+    try {
+      const response = await fetch(`/api/pedidos/${params.id}/factura`)
+      const data = await response.json()
+      if (response.ok) setFactura(data.factura)
+    } catch (err) {
+      console.error("[v0] Error fetching factura:", err)
+    }
+  }
+
+  const handleGenerarFactura = async () => {
+    setGenerandoFactura(true)
+    try {
+      const response = await fetch(`/api/pedidos/${params.id}/factura`, { method: "POST" })
+      const data = await response.json()
+      if (response.ok) {
+        setFactura(data.factura)
+        router.push(`/admin/pedidos/${params.id}/factura`)
+      } else {
+        setError(data.error || "Error al generar la factura")
+      }
+    } catch (err) {
+      console.error("[v0] Error generating factura:", err)
+      setError("Error al generar la factura")
+    } finally {
+      setGenerandoFactura(false)
+    }
+  }
 
   const fetchPedido = async () => {
     try {
@@ -197,7 +230,7 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
 
       if (response.ok) {
         setPagos(data.pagos)
-        const pagado = data.pagos.reduce((sum, pago) => sum + Number.parseFloat(pago.monto || "0"), 0)
+        const pagado = data.pagos.reduce((sum: number, pago: Pago) => sum + Number.parseFloat(pago.monto || "0"), 0)
         setTotalPagado(pagado)
       }
     } catch (err) {
@@ -261,7 +294,7 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
   }
 
   const handleItemSelect = (itemId: string) => {
-    const items = itemForm.item_tipo === "producto" ? productos : servicios
+    const items: (Producto | Servicio)[] = itemForm.item_tipo === "producto" ? productos : servicios
     const selectedItem = items.find((item) => item.id.toString() === itemId)
 
     if (selectedItem) {
@@ -550,8 +583,9 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
   }
 
   const canDeleteEnvio = userRole === "administrador"
-  const isOrderClosed =
+  const isOrderClosed = !!(
     pedido && (pedido.estado === "terminado" || pedido.estado === "anulado" || pedido.estado === "entregado")
+  )
   const canModifyOrder = userRole === "administrador" || !isOrderClosed
 
   let saldoPendiente = 0
@@ -590,6 +624,15 @@ export default function PedidoDetallePage({ params }: { params: { id: string } }
           <Badge className={estadoColors[pedido.estado]} style={{ fontSize: "1rem", padding: "0.5rem 1rem" }}>
             {estadoLabels[pedido.estado]}
           </Badge>
+          {factura ? (
+            <Button variant="outline" onClick={() => router.push(`/admin/pedidos/${params.id}/factura`)}>
+              Ver Factura ({factura.numero_factura})
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={handleGenerarFactura} disabled={generandoFactura}>
+              {generandoFactura ? "Generando..." : "Generar Factura"}
+            </Button>
+          )}
         </div>
 
         {isOrderClosed && userRole === "asistente" && (

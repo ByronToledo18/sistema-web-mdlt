@@ -3,10 +3,10 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 import { createAuditLog } from "@/lib/audit"
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["administrador"])
-    const userId = Number.parseInt(params.id)
+    const userId = Number.parseInt((await params).id)
 
     // Get user info before deletion
     const [targetUser] = await sql`

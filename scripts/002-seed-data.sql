@@ -2,36 +2,12 @@
 -- Versión: 002
 -- Fecha: 2025-01-15
 
--- Usuario administrador por defecto
--- Contraseña: Admin123!
--- Hash generado con bcrypt, rounds=10
-INSERT INTO usuarios (rol_id, nombre, email, hash_password, activo)
-VALUES (
-  (SELECT id FROM roles WHERE nombre = 'administrador'),
-  'Administrador',
-  'admin@elmundodelastutus.com',
-  -- Hash real de bcrypt para "Admin123!"
-  '$2b$10$K7L1OJ45/4Y2nIvhRORzLOIdEkiDC5B5/5fZTnkDvZLEqKpLJxJya',
-  true
-)
-ON CONFLICT (email) DO UPDATE SET
-  hash_password = EXCLUDED.hash_password,
-  activo = EXCLUDED.activo;
-
--- Usuario de soporte técnico
--- Contraseña: Soporte123!
-INSERT INTO usuarios (rol_id, nombre, email, hash_password, activo)
-VALUES (
-  (SELECT id FROM roles WHERE nombre = 'soporte'),
-  'Soporte Técnico',
-  'soporte@elmundodelastutus.com',
-  -- Hash real de bcrypt para "Soporte123!"
-  '$2b$10$K7L1OJ45/4Y2nIvhRORzLOIdEkiDC5B5/5fZTnkDvZLEqKpLJxJya',
-  true
-)
-ON CONFLICT (email) DO UPDATE SET
-  hash_password = EXCLUDED.hash_password,
-  activo = EXCLUDED.activo;
+-- Los usuarios internos (administrador, soporte) ya NO se siembran aquí con una
+-- contraseña/hash fija: el formato bcrypt de este archivo es incompatible con
+-- verifyPassword() en lib/auth.ts (PBKDF2/Web Crypto), y una contraseña
+-- hardcodeada conocida es un riesgo de seguridad por sí sola.
+-- Para crear o resetear estos usuarios con una contraseña aleatoria generada
+-- en el momento, ejecuta: node --loader ts-node/esm scripts/create-admin.ts
 
 -- Productos de ejemplo
 INSERT INTO productos (sku, nombre, precio, stock, activo) VALUES

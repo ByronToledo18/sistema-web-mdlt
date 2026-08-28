@@ -3,11 +3,11 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener proveedor por ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { id } = params
+    const { id } = await params
 
     const result = await sql`SELECT * FROM proveedores WHERE id = ${id}`
 
@@ -23,11 +23,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Actualizar proveedor
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { id } = params
+    const { id } = await params
     const { nombre, ruc, telefono, email, direccion, contacto_nombre, contacto_telefono, notas } = await request.json()
 
     if (!nombre) {
@@ -67,11 +67,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Eliminar proveedor
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { id } = params
+    const { id } = await params
 
     // Check if proveedor has facturas
     const facturas = await sql`SELECT COUNT(*) as count FROM proveedor_facturas WHERE proveedor_id = ${id}`

@@ -26,12 +26,12 @@ export async function GET(request: NextRequest) {
     const pagos = await obtenerPagosPorRango(startDate, endDate)
 
     // Calcular totales
-    const total = pagos.reduce((sum, pago) => sum + Number.parseFloat(pago.monto), 0)
+    const total = pagos.reduce((sum: number, pago: any) => sum + Number.parseFloat(pago.monto), 0)
 
     if (format === "csv") {
       // Generar CSV
       const headers = ["ID", "Fecha", "Pedido", "Cliente", "Monto", "Método", "Referencia"]
-      const rows = pagos.map((pago) => [
+      const rows = pagos.map((pago: any) => [
         pago.id,
         new Date(pago.fecha).toLocaleDateString("es-EC"),
         pago.pedido_codigo,
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         pago.referencia || "",
       ])
 
-      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n")
+      const csv = [headers.join(","), ...rows.map((row: any[]) => row.join(","))].join("\n")
 
       return new NextResponse(csv, {
         headers: {

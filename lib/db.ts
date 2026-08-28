@@ -11,7 +11,7 @@ export async function executeQuery(queryText: string, params: any[]) {
     console.log("[v0] Executing query:", queryText)
     console.log("[v0] With params:", params)
 
-    const result = await sql.query(queryText, params)
+    const result: any = await sql.query(queryText, params)
     console.log("[v0] Query result type:", typeof result)
     console.log("[v0] Query result is array:", Array.isArray(result))
     console.log("[v0] Query result has rows:", result && "rows" in result)

@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { createAuditLog } from "@/lib/audit"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuth(["soporte", "administrador"])
 
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       SELECT u.activo, r.nombre as rol_nombre
       FROM usuarios u
       JOIN roles r ON u.rol_id = r.id
-      WHERE u.id = ${params.id}
+      WHERE u.id = ${(await params).id}
     `
 
     if (!targetUser) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       UPDATE usuarios
       SET activo = NOT activo,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${params.id}
+      WHERE id = ${(await params).id}
       RETURNING activo
     `
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       usuario_id: user.id,
       accion: nuevoEstado ? "ACTIVAR_USUARIO" : "DESACTIVAR_USUARIO",
       modulo: "usuarios",
-      descripcion: `Usuario ID ${params.id} ${nuevoEstado ? "activado" : "desactivado"}`,
+      descripcion: `Usuario ID ${(await params).id} ${nuevoEstado ? "activado" : "desactivado"}`,
     })
 
     return NextResponse.json({

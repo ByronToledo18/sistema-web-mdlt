@@ -3,11 +3,11 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Obtener factura con detalles
-export async function GET(request: NextRequest, { params }: { params: { facturaId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ facturaId: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { facturaId } = params
+    const { facturaId } = await params
 
     const facturaResult = await sql`
       SELECT 
@@ -52,11 +52,11 @@ export async function GET(request: NextRequest, { params }: { params: { facturaI
 }
 
 // DELETE - Anular factura
-export async function DELETE(request: NextRequest, { params }: { params: { facturaId: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ facturaId: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { facturaId } = params
+    const { facturaId } = await params
 
     // Check if factura has payments
     const pagos = await sql`SELECT COUNT(*) as count FROM proveedor_pagos WHERE factura_id = ${facturaId}`

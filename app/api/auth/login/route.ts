@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar usuario con su rol
-    const users = await sql<{
+    interface UsuarioConRol {
       id: number
       email: string
       nombre: string
@@ -21,14 +21,16 @@ export async function POST(request: NextRequest) {
       activo: boolean
       rol_id: number
       rol_nombre: string
-    }>`
+    }
+
+    const users = await sql`
       SELECT u.id, u.email, u.nombre, u.hash_password, u.activo, u.rol_id, r.nombre as rol_nombre
       FROM usuarios u
       JOIN roles r ON u.rol_id = r.id
       WHERE u.email = ${email}
     `
 
-    const user = users[0]
+    const user = users[0] as UsuarioConRol | undefined
 
     if (!user) {
       await createAuditLog({

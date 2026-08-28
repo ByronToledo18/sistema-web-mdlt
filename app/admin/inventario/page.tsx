@@ -45,10 +45,6 @@ interface Servicio {
   can_delete?: boolean
 }
 
-function openNewDialog(type: "producto" | "servicio") {
-  // Implementation for openNewDialog goes here
-}
-
 export default function InventarioPage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
@@ -188,6 +184,12 @@ export default function InventarioPage() {
     } catch (err) {
       setError("Error al guardar servicio")
     }
+  }
+
+  const openNewDialog = (type: "producto" | "servicio") => {
+    resetForms()
+    setDialogType(type)
+    setDialogOpen(true)
   }
 
   const handleEditProducto = (producto: Producto) => {

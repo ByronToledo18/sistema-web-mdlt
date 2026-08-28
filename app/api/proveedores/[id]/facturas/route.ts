@@ -3,11 +3,11 @@ import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 
 // GET - Listar facturas de un proveedor
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { id } = params
+    const { id } = await params
     const { searchParams } = new URL(request.url)
     const estado = searchParams.get("estado")
 
@@ -49,11 +49,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // POST - Crear factura
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth(["administrador"])
 
-    const { id: proveedor_id } = params
+    const { id: proveedor_id } = await params
     const { numero_factura, fecha_emision, fecha_vencimiento, items, notas } = await request.json()
 
     if (!numero_factura || !fecha_emision || !items || items.length === 0) {

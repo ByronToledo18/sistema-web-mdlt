@@ -15,6 +15,7 @@ const roleRoutes: Record<string, string[]> = {
     "/admin/pagos",
     "/admin/envios",
     "/admin/proveedores",
+    "/admin/nomina",
   ],
   asistente: ["/admin/dashboard", "/admin/pedidos", "/admin/clientes", "/admin/inventario", "/admin/envios"],
   soporte: ["/admin/dashboard", "/admin/soporte"],

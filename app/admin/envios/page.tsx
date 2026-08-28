@@ -57,6 +57,9 @@ export default function EnviosPage() {
   const [consolidacion, setConsolidacion] = useState<ConsolidacionServientrega | null>(null)
   const [loading, setLoading] = useState(true)
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false)
+  const [guiaDialogOpen, setGuiaDialogOpen] = useState(false)
+  const [guiaDialogEnvioId, setGuiaDialogEnvioId] = useState<number | null>(null)
+  const [guiaInput, setGuiaInput] = useState("")
   const [error, setError] = useState("")
   const [userRole, setUserRole] = useState<string>("")
 
@@ -119,29 +122,48 @@ export default function EnviosPage() {
     }
   }
 
-  const handleGenerarGuia = async (envioId: number) => {
-    try {
-      // TODO: Integrate with Servientrega API to generate real shipping guide
-      // For now, simulate successful guide generation
+  // Servientrega no tiene una API de autoservicio (requiere credenciales
+  // corporativas solicitadas directamente a Servientrega - ver contexto del
+  // proyecto). Hasta tener esas credenciales, este flujo es honesto: el admin
+  // genera la guía manualmente en el portal de Servientrega y la registra aquí.
+  const openGuiaDialog = (envio: Envio) => {
+    setGuiaDialogEnvioId(envio.id)
+    setGuiaInput(envio.guia)
+    setError("")
+    setGuiaDialogOpen(true)
+  }
 
-      const response = await fetch(`/api/envios/${envioId}`, {
+  const handleConfirmGuia = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!guiaDialogEnvioId) return
+
+    if (!guiaInput.trim()) {
+      setError("Ingresa el número de guía generado en el portal de Servientrega")
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/envios/${guiaDialogEnvioId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           estado: "en_proceso",
+          guia: guiaInput.trim(),
         }),
       })
 
       if (response.ok) {
+        setGuiaDialogOpen(false)
+        setGuiaDialogEnvioId(null)
         fetchEnvios()
         fetchConsolidacion()
-        alert("Guía generada exitosamente. El costo ha sido agregado a la cuenta de Servientrega.")
       } else {
-        alert("Error al generar la guía")
+        const data = await response.json()
+        setError(data.error || "Error al registrar la guía")
       }
     } catch (err) {
-      console.error("[v0] Error generating guide:", err)
-      alert("Error al generar la guía")
+      console.error("[v0] Error registering guide:", err)
+      setError("Error al registrar la guía")
     }
   }
 
@@ -310,9 +332,9 @@ export default function EnviosPage() {
                             <p className="font-bold">{formatCurrency(envio.costo)}</p>
                           </div>
                           {["pendiente", "en_proceso"].includes(envio.estado) ? (
-                            <Button variant="default" size="sm" onClick={() => handleGenerarGuia(envio.id)}>
+                            <Button variant="default" size="sm" onClick={() => openGuiaDialog(envio)}>
                               <FileText className="mr-2 h-4 w-4" />
-                              Generar Guía
+                              Registrar Guía
                             </Button>
                           ) : (
                             <Badge variant="secondary" className="px-3 py-1">
@@ -551,6 +573,43 @@ export default function EnviosPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        <Dialog open={guiaDialogOpen} onOpenChange={setGuiaDialogOpen}>
+          <DialogContent>
+            <form onSubmit={handleConfirmGuia}>
+              <DialogHeader>
+                <DialogTitle>Registrar Guía de Servientrega</DialogTitle>
+                <DialogDescription>
+                  Genera la guía manualmente en el portal de Servientrega y pega aquí el número real. Esto no llama a
+                  ninguna API externa: Servientrega requiere credenciales corporativas que aún no tenemos configuradas.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 py-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="guia-real">Número de Guía *</Label>
+                  <Input
+                    id="guia-real"
+                    value={guiaInput}
+                    onChange={(e) => setGuiaInput(e.target.value)}
+                    placeholder="Número de guía de Servientrega"
+                    required
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="submit">Registrar Guía</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

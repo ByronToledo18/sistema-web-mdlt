@@ -1,5 +1,6 @@
-// Script para generar hash de contraseña compatible con Web Crypto API
-// Ejecutar con: node scripts/generate-password-hash.ts
+// Script para generar hash de contraseña compatible con Web Crypto API (mismo
+// formato que lib/auth.ts hashPassword/verifyPassword).
+// Ejecutar con: node scripts/generate-password-hash.ts "MiContraseñaSegura"
 
 async function generatePasswordHash(password: string): Promise<string> {
   // Generate a random salt
@@ -35,9 +36,13 @@ async function generatePasswordHash(password: string): Promise<string> {
   return `${saltHex}:${hashHex}`
 }
 
-// Generar hash para contraseña "Admin123!"
-generatePasswordHash("Admin123!").then((hash) => {
-  console.log('Hash generado para "Admin123!":')
+const password = process.argv[2]
+if (!password) {
+  console.error("Uso: node scripts/generate-password-hash.ts <contraseña>")
+  process.exit(1)
+}
+
+generatePasswordHash(password).then((hash) => {
+  console.log("Hash generado:")
   console.log(hash)
-  console.log("\nUsa este hash en el script SQL 006-reset-user-passwords.sql")
 })
