@@ -42,9 +42,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Este pedido ya tiene una factura generada" }, { status: 400 })
     }
 
-    const pedidoResult = await sql`SELECT id, codigo FROM pedidos WHERE id = ${id}`
+    const pedidoResult = await sql`SELECT id, codigo, estado FROM pedidos WHERE id = ${id}`
     if (pedidoResult.length === 0) {
       return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 })
+    }
+
+    if (pedidoResult[0].estado === "anulado") {
+      return NextResponse.json({ error: "No se puede facturar un pedido anulado" }, { status: 400 })
     }
 
     const items = await sql`SELECT subtotal FROM pedido_items WHERE pedido_id = ${id}`
