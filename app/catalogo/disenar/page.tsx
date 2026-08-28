@@ -176,7 +176,7 @@ export default function DisenarTutuPage() {
         </Card>
 
         {diseno && (
-          <Card>
+          <Card className="design-reveal">
             <CardHeader>
               <CardTitle>Vista previa de tu diseño</CardTitle>
               <CardDescription>{diseno.descripcion}</CardDescription>

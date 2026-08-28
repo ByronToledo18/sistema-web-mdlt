@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -48,14 +48,31 @@ export default function CatalogoPage() {
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [cartCount, setCartCount] = useState(0)
+  const [cartPulse, setCartPulse] = useState(false)
   const [isClientLoggedIn, setIsClientLoggedIn] = useState(false)
   const [clientName, setClientName] = useState("")
+  const previousCartCount = useRef<number | null>(null)
 
   useEffect(() => {
     fetchData()
     updateCartCount()
     checkClientAuth()
   }, [])
+
+  // Pulso de feedback en el badge del carrito solo cuando el conteo sube por
+  // una acción del usuario (agregar item) - no en la carga inicial de la
+  // página. Dos fases (subir, bajar) sobre una transición CSS, no un
+  // @keyframes, para que agregar varios ítems seguidos retargetee la
+  // transición en vez de reiniciarla desde cero.
+  useEffect(() => {
+    if (previousCartCount.current !== null && cartCount > previousCartCount.current) {
+      setCartPulse(true)
+      const peak = setTimeout(() => setCartPulse(false), 130)
+      previousCartCount.current = cartCount
+      return () => clearTimeout(peak)
+    }
+    previousCartCount.current = cartCount
+  }, [cartCount])
 
   const fetchData = async () => {
     try {
@@ -137,7 +154,10 @@ export default function CatalogoPage() {
                   >
                     <ShoppingCart className="h-5 w-5" />
                     {cartCount > 0 && (
-                      <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground">
+                      <Badge
+                        data-pulse-peak={cartPulse}
+                        className="cart-badge-pulse absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground"
+                      >
                         {cartCount}
                       </Badge>
                     )}
@@ -197,7 +217,10 @@ export default function CatalogoPage() {
                   >
                     <ShoppingCart className="h-5 w-5" />
                     {cartCount > 0 && (
-                      <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground">
+                      <Badge
+                        data-pulse-peak={cartPulse}
+                        className="cart-badge-pulse absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground"
+                      >
                         {cartCount}
                       </Badge>
                     )}

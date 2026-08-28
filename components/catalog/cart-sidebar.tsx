@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getCart, removeFromCart, updateQuantity, type Cart } from "@/lib/cart"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { cn } from "@/lib/utils"
 
 interface CartSidebarProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ interface CartSidebarProps {
 
 export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
   const [cart, setCart] = useState<Cart>({ items: [], total: 0 })
+  const [removingKeys, setRemovingKeys] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (isOpen) {
@@ -23,8 +25,22 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
   }, [isOpen])
 
   const handleRemove = (id: number, tipo: "producto" | "servicio") => {
-    const newCart = removeFromCart(id, tipo)
-    setCart(newCart)
+    const key = `${tipo}-${id}`
+    // El item sale con transición antes de quitarse del estado real - ver
+    // .cart-item[data-removing] en globals.css. 200ms coincide con la
+    // duración de esa transición. Un Set (no un solo string) permite
+    // eliminar varios ítems en sucesión rápida sin que el segundo cancele
+    // la animación de salida del primero.
+    setRemovingKeys((prev) => new Set(prev).add(key))
+    setTimeout(() => {
+      const newCart = removeFromCart(id, tipo)
+      setCart(newCart)
+      setRemovingKeys((prev) => {
+        const next = new Set(prev)
+        next.delete(key)
+        return next
+      })
+    }, 200)
   }
 
   const handleUpdateQuantity = (id: number, tipo: "producto" | "servicio", cantidad: number) => {
@@ -32,15 +48,26 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
     setCart(newCart)
   }
 
-  if (!isOpen) return null
-
   return (
     <>
       {/* Overlay */}
-      <div className="fixed inset-0 bg-black/50 z-50 transition-opacity" onClick={onClose} />
+      <div
+        className={cn(
+          "cart-drawer-overlay fixed inset-0 bg-black/50 z-50 transition-opacity duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+        onClick={onClose}
+      />
 
       {/* Sidebar */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-card shadow-2xl z-50 flex flex-col">
+      <div
+        className={cn(
+          "cart-drawer fixed right-0 top-0 h-full w-full max-w-md bg-card shadow-2xl z-50 flex flex-col",
+          "transition-transform ease-[cubic-bezier(0.32,0.72,0,1)]",
+          isOpen ? "translate-x-0 duration-[320ms]" : "translate-x-full duration-[280ms] pointer-events-none",
+        )}
+        aria-hidden={!isOpen}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-2">
@@ -63,7 +90,11 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
           ) : (
             <>
               {cart.items.map((item) => (
-                <div key={`${item.tipo}-${item.id}`} className="flex gap-4 p-4 border rounded-lg bg-background">
+                <div
+                  key={`${item.tipo}-${item.id}`}
+                  data-removing={removingKeys.has(`${item.tipo}-${item.id}`)}
+                  className="cart-item flex gap-4 p-4 border rounded-lg bg-background"
+                >
                   {item.imagen_url && (
                     <img
                       src={item.imagen_url || "/placeholder.svg"}

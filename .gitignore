@@ -26,6 +26,10 @@ yarn-error.log*
 # the client meeting transcript, shouldn't live in git history)
 /graphify-out/
 
+# Claude Code project-level skills/config - tooling, not app code
+/.claude/
+/skills-lock.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

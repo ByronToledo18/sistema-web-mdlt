@@ -3,6 +3,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Curvas de easing compartidas - no aproximar valores, extender estas. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* Updated to Sophisticated Pink theme - professional yet feminine */
 :root {
   /* Admin Theme - Sophisticated Dark with Muted Pink */
@@ -186,26 +193,6 @@
     /* Enhanced transitions for sophisticated theme */
     transition: background-color 0.4s ease, color 0.4s ease;
   }
-
-  /* Enhanced hover effects for sophisticated pink theme */
-  button,
-  a,
-  [role="button"] {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  button:hover,
-  a:hover,
-  [role="button"]:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.1);
-  }
-
-  button:active,
-  a:active,
-  [role="button"]:active {
-    transform: translateY(0);
-  }
 }
 
 /* Added cosmic glow effect for interactive elements */
@@ -262,6 +249,87 @@
 
 .animate-scale-in {
   animation: scaleIn 0.3s ease-out;
+}
+
+/* Revelación del diseño de tutú generado por IA - momento raro/de alta
+   emoción (delight budget). scale(0.95), nunca scale(0). */
+.design-reveal {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+  transition: opacity 480ms var(--ease-out), transform 480ms var(--ease-out), filter 480ms var(--ease-out);
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.95);
+    filter: blur(6px);
+  }
+}
+
+/* Carrito: item saliendo antes de removerse del estado (ver cart-sidebar.tsx).
+   Solo opacity+transform (GPU) - nunca max-height/height, por eso el
+   colapso de espacio se resuelve con scale en vez de layout. */
+.cart-item {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+
+.cart-item[data-removing="true"] {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
+
+/* Badge del contador del carrito: pulso al agregar un ítem (feedback).
+   Transición CSS (no @keyframes) para que sea interrumpible si el usuario
+   agrega varios ítems seguidos - re-disparar solo retarget desde el valor
+   actual en vez de reiniciar desde cero. */
+.cart-badge-pulse {
+  transform: scale(1);
+  transition: transform 130ms var(--ease-out);
+}
+
+.cart-badge-pulse[data-pulse-peak="true"] {
+  transform: scale(1.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .design-reveal {
+    transition: opacity 200ms ease;
+    transform: none !important;
+    filter: none !important;
+
+    @starting-style {
+      opacity: 0;
+      transform: none;
+      filter: none;
+    }
+  }
+
+  .cart-item {
+    transition: opacity 200ms ease;
+  }
+
+  .cart-item[data-removing="true"] {
+    transform: none;
+  }
+
+  .cart-badge-pulse {
+    transition: none;
+  }
+
+  .cart-badge-pulse[data-pulse-peak="true"] {
+    transform: none;
+  }
+
+  .cart-drawer,
+  .cart-drawer-overlay {
+    /* Matar la transición, NUNCA el valor de transform: el drawer debe
+       seguir yendo a su posición cerrada (translate-x-full) cuando isOpen
+       es false - solo sin animación de por medio. */
+    transition: none !important;
+  }
 }
 
 .animate-shimmer {
