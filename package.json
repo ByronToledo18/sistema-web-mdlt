@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@google/genai": "^2.19.0",
     "@neondatabase/serverless": "latest",
     "@radix-ui/react-avatar": "^1.1.2",
     "@radix-ui/react-dialog": "^1.1.4",

@@ -165,6 +165,10 @@ export default function CatalogoPage() {
                         <Package className="mr-2 h-4 w-4" />
                         <span className="text-gray-900">Mis Pedidos</span>
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => router.push("/catalogo/disenar")} className="cursor-pointer">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        <span className="text-gray-900">Diseña tu Tutú (IA)</span>
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push("/portal/perfil")} className="cursor-pointer">
                         <Settings className="mr-2 h-4 w-4" />
                         <span className="text-gray-900">Mi Perfil</span>
@@ -218,6 +222,12 @@ export default function CatalogoPage() {
           <p className="text-lg text-muted-foreground text-balance max-w-2xl mx-auto">
             Tutús personalizados, accesorios elegantes y servicios de confección profesional
           </p>
+          <Link href="/catalogo/disenar">
+            <Button size="lg" className="gap-2">
+              <Sparkles className="h-5 w-5" />
+              Diseña tu Tutú con IA
+            </Button>
+          </Link>
         </div>
       </section>
 
