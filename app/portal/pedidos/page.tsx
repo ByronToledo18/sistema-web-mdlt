@@ -83,13 +83,13 @@ export default function ClientePedidosPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver al Catálogo
           </Button>
-          <h1 className="text-3xl font-bold text-gray-900">Mis Pedidos</h1>
+          <h1 className="text-3xl font-bold text-foreground">Mis Pedidos</h1>
           <p className="text-muted-foreground mt-2">Consulta el estado de tus pedidos</p>
         </div>
 
         {/* Pedidos Pendientes */}
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Pedidos Pendientes</h2>
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Pedidos Pendientes</h2>
           {pedidosPendientes.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
@@ -106,7 +106,7 @@ export default function ClientePedidosPage() {
                   <Card key={pedido.id} className="hover:shadow-lg transition-shadow">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg text-gray-900">{pedido.codigo}</CardTitle>
+                        <CardTitle className="text-lg text-foreground">{pedido.codigo}</CardTitle>
                         <Badge className={`${config.color} text-white`}>
                           <Icon className="h-3 w-3 mr-1" />
                           {config.label}
@@ -117,7 +117,7 @@ export default function ClientePedidosPage() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Fecha</p>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-foreground">
                             {new Date(pedido.created_at).toLocaleDateString("es-EC")}
                           </p>
                         </div>
@@ -136,7 +136,7 @@ export default function ClientePedidosPage() {
 
         {/* Historial de Pedidos */}
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Historial</h2>
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Historial</h2>
           {pedidosHistorial.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
@@ -153,7 +153,7 @@ export default function ClientePedidosPage() {
                   <Card key={pedido.id} className="opacity-75">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg text-gray-900">{pedido.codigo}</CardTitle>
+                        <CardTitle className="text-lg text-foreground">{pedido.codigo}</CardTitle>
                         <Badge className={`${config.color} text-white`}>
                           <Icon className="h-3 w-3 mr-1" />
                           {config.label}
@@ -164,13 +164,13 @@ export default function ClientePedidosPage() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Fecha</p>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-foreground">
                             {new Date(pedido.created_at).toLocaleDateString("es-EC")}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Total</p>
-                          <p className="font-medium text-gray-900">${Number(pedido.total).toFixed(2)}</p>
+                          <p className="font-medium text-foreground">${Number(pedido.total).toFixed(2)}</p>
                         </div>
                       </div>
                     </CardContent>

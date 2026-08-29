@@ -184,15 +184,15 @@ export default function CatalogoPage() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => router.push("/portal/pedidos")} className="cursor-pointer">
                         <Package className="mr-2 h-4 w-4" />
-                        <span className="text-gray-900">Mis Pedidos</span>
+                        <span className="text-foreground">Mis Pedidos</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push("/catalogo/disenar")} className="cursor-pointer">
                         <Sparkles className="mr-2 h-4 w-4" />
-                        <span className="text-gray-900">Diseña tu Tutú (IA)</span>
+                        <span className="text-foreground">Diseña tu Tutú (IA)</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push("/portal/perfil")} className="cursor-pointer">
                         <Settings className="mr-2 h-4 w-4" />
-                        <span className="text-gray-900">Mi Perfil</span>
+                        <span className="text-foreground">Mi Perfil</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">

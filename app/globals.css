@@ -165,6 +165,10 @@
   --border: var(--catalog-border);
   --input: var(--catalog-input);
   --ring: var(--catalog-ring);
+  /* Sin esto, DropdownMenu/Select en el catalogo heredaban --popover del tema
+     admin (oscuro) mientras el resto de la pagina es clara - texto invisible. */
+  --popover: var(--catalog-card);
+  --popover-foreground: var(--catalog-card-foreground);
   --font-sans: "Nunito", "Nunito Fallback", sans-serif;
 }
 
