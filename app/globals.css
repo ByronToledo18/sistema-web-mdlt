@@ -10,41 +10,61 @@
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* Paleta de marca "dusty rose" - escala de 11 tonos, un solo hue (340) en
+   vez de los 320/330/340/350 dispersos que tenía la version anterior.
+   --pink-600 es exactamente el color de marca original (oklch(0.55 0.12 340)),
+   preservado para que el logo/identidad no cambie - el resto de la escala se
+   generó alrededor de ese ancla siguiendo la skill color-palette (WCAG AA
+   verificado con script OKLCH->sRGB, ver historial de la sesión). */
+:root {
+  --pink-50: oklch(0.975 0.012 340);
+  --pink-100: oklch(0.95 0.022 340);
+  --pink-200: oklch(0.9 0.035 340);
+  --pink-300: oklch(0.82 0.05 340);
+  --pink-400: oklch(0.7 0.075 340);
+  --pink-500: oklch(0.6 0.095 340);
+  --pink-600: oklch(0.55 0.12 340);
+  --pink-700: oklch(0.47 0.12 340);
+  --pink-800: oklch(0.38 0.105 340);
+  --pink-900: oklch(0.28 0.08 340);
+  --pink-950: oklch(0.18 0.05 340);
+}
+
 /* Updated to Sophisticated Pink theme - professional yet feminine */
 :root {
   /* Admin Theme - Sophisticated Dark with Muted Pink */
-  --admin-background: oklch(0.15 0.015 330);
-  --admin-foreground: oklch(0.98 0.005 330);
-  --admin-card: oklch(0.18 0.02 330);
-  --admin-card-foreground: oklch(0.98 0.005 330);
-  --admin-primary: oklch(0.55 0.12 340); /* Muted dusty rose */
-  --admin-primary-foreground: oklch(0.98 0.005 330);
-  --admin-secondary: oklch(0.42 0.08 320); /* Deep mauve */
-  --admin-secondary-foreground: oklch(0.98 0.005 330);
-  --admin-muted: oklch(0.25 0.02 330);
-  --admin-muted-foreground: oklch(0.65 0.03 330);
-  --admin-accent: oklch(0.65 0.1 350); /* Soft rose */
-  --admin-accent-foreground: oklch(0.15 0.015 330);
-  --admin-border: oklch(0.3 0.03 330);
-  --admin-input: oklch(0.2 0.02 330);
-  --admin-ring: oklch(0.55 0.12 340);
+  --admin-background: var(--pink-950);
+  --admin-foreground: var(--pink-50);
+  --admin-card: var(--pink-900);
+  --admin-card-foreground: var(--pink-50);
+  --admin-primary: var(--pink-600); /* Muted dusty rose - color de marca original */
+  --admin-primary-foreground: oklch(1 0 0);
+  --admin-secondary: var(--pink-800); /* Deep mauve */
+  --admin-secondary-foreground: var(--pink-50);
+  --admin-muted: var(--pink-800);
+  --admin-muted-foreground: var(--pink-400); /* 6.87:1 sobre admin-background */
+  --admin-accent: var(--pink-800);
+  --admin-accent-foreground: var(--pink-50);
+  --admin-border: var(--pink-800);
+  --admin-input: var(--pink-800);
+  --admin-ring: var(--pink-600);
 
   /* Catalog Theme - Sophisticated Light with Muted Pink */
-  --catalog-background: oklch(0.98 0.01 340); /* Soft off-white */
-  --catalog-foreground: oklch(0.25 0.03 340); /* Charcoal with pink undertone */
+  --catalog-background: var(--pink-50); /* Soft off-white */
+  --catalog-foreground: var(--pink-900); /* Charcoal con matiz rosa, AAA sobre blanco/pink-50 */
   --catalog-card: oklch(1 0 0); /* Pure white */
-  --catalog-card-foreground: oklch(0.25 0.03 340);
-  --catalog-primary: oklch(0.55 0.12 340); /* Dusty rose - professional */
+  --catalog-card-foreground: var(--pink-900);
+  --catalog-primary: var(--pink-600); /* Dusty rose - color de marca original */
   --catalog-primary-foreground: oklch(1 0 0);
-  --catalog-secondary: oklch(0.75 0.06 330); /* Soft blush */
-  --catalog-secondary-foreground: oklch(0.25 0.03 340);
-  --catalog-muted: oklch(0.92 0.015 340); /* Light gray-pink */
-  --catalog-muted-foreground: oklch(0.5 0.03 340); /* Medium gray */
-  --catalog-accent: oklch(0.65 0.1 350); /* Muted rose accent */
-  --catalog-accent-foreground: oklch(0.98 0.01 340);
-  --catalog-border: oklch(0.88 0.02 340); /* Subtle border */
-  --catalog-input: oklch(0.97 0.01 340);
-  --catalog-ring: oklch(0.55 0.12 340);
+  --catalog-secondary: var(--pink-300); /* Soft blush */
+  --catalog-secondary-foreground: var(--pink-900);
+  --catalog-muted: var(--pink-50);
+  --catalog-muted-foreground: var(--pink-600); /* 4.80:1 sobre catalog-muted */
+  --catalog-accent: var(--pink-100);
+  --catalog-accent-foreground: var(--pink-900);
+  --catalog-border: var(--pink-200); /* Subtle border */
+  --catalog-input: var(--pink-100);
+  --catalog-ring: var(--pink-600);
 
   /* Default to admin theme */
   --background: var(--admin-background);
@@ -69,58 +89,63 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
 
-  /* Updated chart colors to match sophisticated pink theme */
-  --chart-1: oklch(0.55 0.12 340);
-  --chart-2: oklch(0.65 0.1 350);
-  --chart-3: oklch(0.5 0.1 320);
-  --chart-4: oklch(0.6 0.12 10);
-  --chart-5: oklch(0.58 0.11 330);
+  /* Chart colors derivados de la misma escala pink (antes mezclaban hues 320/330/340/350/10) */
+  --chart-1: var(--pink-600);
+  --chart-2: var(--pink-400);
+  --chart-3: var(--pink-800);
+  --chart-4: var(--pink-300);
+  --chart-5: var(--pink-700);
 
-  /* Updated sidebar colors */
-  --sidebar: oklch(0.18 0.02 330);
-  --sidebar-foreground: oklch(0.98 0.005 330);
-  --sidebar-primary: oklch(0.55 0.12 340);
-  --sidebar-primary-foreground: oklch(0.98 0.005 330);
-  --sidebar-accent: oklch(0.22 0.025 330);
-  --sidebar-accent-foreground: oklch(0.98 0.005 330);
-  --sidebar-border: oklch(0.3 0.03 330);
-  --sidebar-ring: oklch(0.55 0.12 340);
+  /* Sidebar colors (comparte superficie con el admin theme) */
+  --sidebar: var(--pink-900);
+  --sidebar-foreground: var(--pink-50);
+  --sidebar-primary: var(--pink-600);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: var(--pink-800);
+  --sidebar-accent-foreground: var(--pink-50);
+  --sidebar-border: var(--pink-800);
+  --sidebar-ring: var(--pink-600);
 }
 
-/* Updated dark mode to complement sophisticated pink theme */
+/* Variante dark-mode (sin toggle activo hoy - ThemeProvider existe pero no
+   esta montado en el layout - se deja lista y coherente con la escala pink
+   por si se activa el toggle en el catalogo mas adelante). Antes usaba
+   chroma 0.28, muy por encima del resto de la paleta (0.12 max) y rompia
+   "color de marca reconocible en ambos modos"; ahora usa pink-500/600 igual
+   que el resto. */
 .dark {
-  --background: oklch(0.12 0.02 330); /* Even darker cosmic background */
-  --foreground: oklch(0.98 0.01 330);
-  --card: oklch(0.15 0.03 330);
-  --card-foreground: oklch(0.98 0.01 330);
-  --popover: oklch(0.15 0.03 330);
-  --popover-foreground: oklch(0.98 0.01 330);
-  --primary: oklch(0.7 0.28 340); /* Brighter pink for dark mode */
-  --primary-foreground: oklch(0.98 0.01 330);
-  --secondary: oklch(0.4 0.15 320);
-  --secondary-foreground: oklch(0.98 0.01 330);
-  --muted: oklch(0.22 0.03 330);
-  --muted-foreground: oklch(0.6 0.05 330);
-  --accent: oklch(0.78 0.22 350);
-  --accent-foreground: oklch(0.12 0.02 330);
+  --background: var(--pink-950);
+  --foreground: var(--pink-50);
+  --card: var(--pink-900);
+  --card-foreground: var(--pink-50);
+  --popover: var(--pink-900);
+  --popover-foreground: var(--pink-50);
+  --primary: var(--pink-600); /* pink-500 con texto blanco cae a 4.15:1 (falla AA normal) */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--pink-800);
+  --secondary-foreground: var(--pink-50);
+  --muted: var(--pink-800);
+  --muted-foreground: var(--pink-400);
+  --accent: var(--pink-800);
+  --accent-foreground: var(--pink-50);
   --destructive: oklch(0.5 0.2 27.325);
   --destructive-foreground: oklch(0.98 0.01 330);
-  --border: oklch(0.28 0.05 330);
-  --input: oklch(0.18 0.03 330);
-  --ring: oklch(0.7 0.28 340);
-  --chart-1: oklch(0.7 0.28 340);
-  --chart-2: oklch(0.78 0.22 350);
-  --chart-3: oklch(0.58 0.2 320);
-  --chart-4: oklch(0.73 0.24 10);
-  --chart-5: oklch(0.63 0.22 330);
-  --sidebar: oklch(0.15 0.03 330);
-  --sidebar-foreground: oklch(0.98 0.01 330);
-  --sidebar-primary: oklch(0.7 0.28 340);
-  --sidebar-primary-foreground: oklch(0.98 0.01 330);
-  --sidebar-accent: oklch(0.2 0.04 330);
-  --sidebar-accent-foreground: oklch(0.98 0.01 330);
-  --sidebar-border: oklch(0.28 0.05 330);
-  --sidebar-ring: oklch(0.7 0.28 340);
+  --border: var(--pink-800);
+  --input: var(--pink-800);
+  --ring: var(--pink-600);
+  --chart-1: var(--pink-500);
+  --chart-2: var(--pink-400);
+  --chart-3: var(--pink-700);
+  --chart-4: var(--pink-300);
+  --chart-5: var(--pink-600);
+  --sidebar: var(--pink-900);
+  --sidebar-foreground: var(--pink-50);
+  --sidebar-primary: var(--pink-600);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: var(--pink-800);
+  --sidebar-accent-foreground: var(--pink-50);
+  --sidebar-border: var(--pink-800);
+  --sidebar-ring: var(--pink-600);
 }
 
 /* Apply catalog theme to catalog pages */
@@ -148,6 +173,19 @@
   --font-sans: "Geist", "Geist Fallback";
   --font-mono: "Geist Mono", "Geist Mono Fallback";
   --font-catalog: "Nunito", "Nunito Fallback", sans-serif;
+
+  /* Escala de marca expuesta como utilidades Tailwind (bg-pink-600, text-pink-900, etc.) */
+  --color-pink-50: var(--pink-50);
+  --color-pink-100: var(--pink-100);
+  --color-pink-200: var(--pink-200);
+  --color-pink-300: var(--pink-300);
+  --color-pink-400: var(--pink-400);
+  --color-pink-500: var(--pink-500);
+  --color-pink-600: var(--pink-600);
+  --color-pink-700: var(--pink-700);
+  --color-pink-800: var(--pink-800);
+  --color-pink-900: var(--pink-900);
+  --color-pink-950: var(--pink-950);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -199,10 +237,10 @@
 @keyframes cosmicGlow {
   0%,
   100% {
-    box-shadow: 0 0 20px rgba(255, 105, 180, 0.3);
+    box-shadow: 0 0 20px rgba(159, 83, 135, 0.3);
   }
   50% {
-    box-shadow: 0 0 30px rgba(255, 105, 180, 0.5);
+    box-shadow: 0 0 30px rgba(159, 83, 135, 0.5);
   }
 }
 
@@ -334,7 +372,7 @@
 
 .animate-shimmer {
   animation: shimmer 2s infinite;
-  background: linear-gradient(to right, transparent 0%, rgba(255, 105, 180, 0.2) 50%, transparent 100%);
+  background: linear-gradient(to right, transparent 0%, rgba(159, 83, 135, 0.2) 50%, transparent 100%);
   background-size: 1000px 100%;
 }
 
@@ -346,7 +384,7 @@
 
 .card-hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(255, 105, 180, 0.3);
+  box-shadow: 0 20px 40px -10px rgba(159, 83, 135, 0.3);
   border-color: var(--primary);
 }
 
@@ -370,11 +408,11 @@
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 10px rgba(255, 105, 180, 0.2);
+    box-shadow: 0 0 10px rgba(159, 83, 135, 0.2);
   }
   50% {
     opacity: 0.8;
-    box-shadow: 0 0 20px rgba(255, 105, 180, 0.4);
+    box-shadow: 0 0 20px rgba(159, 83, 135, 0.4);
   }
 }
 
@@ -405,11 +443,11 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: radial-gradient(2px 2px at 20% 30%, rgba(255, 105, 180, 0.4), transparent),
-    radial-gradient(2px 2px at 60% 70%, rgba(255, 182, 193, 0.3), transparent),
-    radial-gradient(1px 1px at 50% 50%, rgba(255, 105, 180, 0.5), transparent),
-    radial-gradient(1px 1px at 80% 10%, rgba(255, 182, 193, 0.4), transparent),
-    radial-gradient(2px 2px at 90% 60%, rgba(255, 105, 180, 0.3), transparent);
+  background-image: radial-gradient(2px 2px at 20% 30%, rgba(159, 83, 135, 0.4), transparent),
+    radial-gradient(2px 2px at 60% 70%, rgba(191, 140, 173, 0.3), transparent),
+    radial-gradient(1px 1px at 50% 50%, rgba(159, 83, 135, 0.5), transparent),
+    radial-gradient(1px 1px at 80% 10%, rgba(191, 140, 173, 0.4), transparent),
+    radial-gradient(2px 2px at 90% 60%, rgba(159, 83, 135, 0.3), transparent);
   background-size: 200% 200%;
   animation: twinkle 4s ease-in-out infinite;
   pointer-events: none;

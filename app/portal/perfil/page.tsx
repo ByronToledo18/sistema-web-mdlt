@@ -161,14 +161,14 @@ export default function PerfilPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 to-pink-100">
         <p className="text-foreground">Cargando...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-pink-100 p-4">
       <div className="max-w-4xl mx-auto space-y-6 py-8">
         <div className="flex items-center justify-between">
           <div>

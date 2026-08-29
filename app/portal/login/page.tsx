@@ -61,7 +61,7 @@ export default function PortalLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 to-pink-100 p-4">
       <Link href="/catalogo" className="absolute top-4 left-4">
         <Button
           variant="outline"
