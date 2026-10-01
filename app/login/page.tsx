@@ -73,15 +73,10 @@ export default function LoginPage() {
     setResetLoading(true)
 
     try {
-      const response = await fetch("/api/soporte/tickets", {
+      const response = await fetch("/api/auth/solicitar-reseteo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: "reseteo_contraseña",
-          prioridad: "alta",
-          descripcion: `Solicitud de reseteo de contraseña para el usuario: ${resetEmail}\n\nMensaje: ${resetMessage}`,
-          email_contacto: resetEmail,
-        }),
+        body: JSON.stringify({ email: resetEmail, mensaje: resetMessage }),
       })
 
       if (!response.ok) {

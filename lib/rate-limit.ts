@@ -107,4 +107,6 @@ export const RATE_LIMITS = {
   recuperarPassword: { key: "portal-recuperar", limit: 5, windowSec: 15 * 60 },
   resetPassword: { key: "portal-reset", limit: 10, windowSec: 15 * 60 },
   disenar: { key: "catalogo-disenar", limit: 10, windowSec: 60 * 60 },
+  soporteTicket: { key: "soporte-ticket", limit: 5, windowSec: 60 * 60 },
+  reseteoAdmin: { key: "auth-reseteo", limit: 5, windowSec: 15 * 60 },
 } satisfies Record<string, Omit<RateLimitOptions, "id">>

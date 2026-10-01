@@ -5,7 +5,7 @@ import { hashPassword, type UserPayload } from "@/lib/auth"
 import { HttpError } from "@/lib/http"
 import { db, withTx, type Tx } from "@/server/db/client"
 import { roles, tickets, usuarios } from "@/server/db/schema"
-import type { CrearUsuario } from "@/server/validators/usuarios"
+import type { CrearUsuario, PrioridadTicket, TipoTicket } from "@/server/validators/usuarios"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
 import { emailIgual } from "./auth"
 
@@ -241,9 +241,11 @@ export async function listarTickets(estado?: string) {
     .orderBy(desc(tickets.created_at))
 }
 
+// Solo para el servidor: el POST público valida con crearTicketBody, que no
+// admite "reseteo_contraseña".
 export async function crearTicket(input: {
-  tipo: string
-  prioridad: string
+  tipo: TipoTicket
+  prioridad: PrioridadTicket
   descripcion: string
   email_contacto: string | null
 }) {
@@ -252,4 +254,26 @@ export async function crearTicket(input: {
     .values({ ...input, estado: "pendiente" })
     .returning()
   return ticket
+}
+
+// "Olvidé mi contraseña" del login del panel admin: deja un ticket para que
+// soporte resetee la contraseña desde el panel. Solo si el email es de un
+// usuario activo; si no, no hace nada (la ruta responde igual en ambos casos,
+// así no sirve para averiguar qué emails existen).
+export async function solicitarReseteoAdmin(input: { email: string; mensaje: string | null }): Promise<boolean> {
+  const [usuario] = await db
+    .select({ id: usuarios.id, nombre: usuarios.nombre, email: usuarios.email })
+    .from(usuarios)
+    .where(and(emailIgual(usuarios.email, input.email), eq(usuarios.activo, true)))
+    .limit(1)
+  if (!usuario) return false
+
+  const mensaje = input.mensaje ? `\n\nMensaje: ${input.mensaje}` : ""
+  await crearTicket({
+    tipo: "reseteo_contraseña",
+    prioridad: "alta",
+    descripcion: `Solicitud de reseteo de contraseña para el usuario: ${usuario.nombre} (${usuario.email})${mensaje}`,
+    email_contacto: usuario.email,
+  })
+  return true
 }
