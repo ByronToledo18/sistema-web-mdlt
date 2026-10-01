@@ -84,7 +84,7 @@ describe("reportePdf", () => {
   test("genera un PDF válido con tildes y ñ", async () => {
     const buffer = await reportePdf(reporte(filas))
     expect(buffer.subarray(0, 5).toString()).toBe("%PDF-")
-    const pdf = await PDFDocument.load(buffer)
+    const pdf = await PDFDocument.load(new Uint8Array(buffer))
     expect(pdf.getPageCount()).toBe(1)
     expect(pdf.getTitle()).toBe("Reporte de cobros")
   })
@@ -96,7 +96,7 @@ describe("reportePdf", () => {
       cliente: `Cliente ${i + 1}`,
       monto: "10.00",
     }))
-    const pdf = await PDFDocument.load(await reportePdf(reporte(muchas)))
+    const pdf = await PDFDocument.load(new Uint8Array(await reportePdf(reporte(muchas))))
     expect(pdf.getPageCount()).toBeGreaterThan(5)
   })
 
