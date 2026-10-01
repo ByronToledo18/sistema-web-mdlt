@@ -66,7 +66,7 @@ export function ClientesGrid({ clientes, canEdit, canToggleStatus }: ClientesGri
                   <CardTitle className="text-lg">{cliente.nombre}</CardTitle>
                   <CardDescription>ID: {cliente.id}</CardDescription>
                 </div>
-                <Badge variant={cliente.activo ? "default" : "secondary"}>{cliente.activo ? "Activo" : "Inactivo"}</Badge>
+                <Badge className="transition-[background-color,color] duration-200 ease" variant={cliente.activo ? "default" : "secondary"}>{cliente.activo ? "Activo" : "Inactivo"}</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">

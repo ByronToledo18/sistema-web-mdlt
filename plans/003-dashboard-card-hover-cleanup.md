@@ -1,6 +1,6 @@
 # 003 — Fix `.card-hover` transition-all and gate hover for touch
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 6501b96
 - **Severity**: MEDIUM
 - **Category**: Performance / Accessibility

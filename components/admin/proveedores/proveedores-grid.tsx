@@ -63,7 +63,7 @@ export function ProveedoresGrid({ proveedores, canUpdate }: { proveedores: Prove
                   </div>
                   {proveedor.ruc && <CardDescription>RUC: {proveedor.ruc}</CardDescription>}
                 </div>
-                <Badge variant={proveedor.activo ? "default" : "secondary"}>
+                <Badge className="transition-[background-color,color] duration-200 ease" variant={proveedor.activo ? "default" : "secondary"}>
                   {proveedor.activo ? "Activo" : "Inactivo"}
                 </Badge>
               </div>
