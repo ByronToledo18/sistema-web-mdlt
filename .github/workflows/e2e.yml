@@ -1,0 +1,55 @@
+name: E2E (preview de Vercel)
+
+# Opcional: corre los flujos de Playwright contra el preview que Vercel
+# despliega para cada PR. Se activa con la variable de repositorio
+# E2E_ENABLED=true y necesita:
+#   - secrets.TEST_DATABASE_URL: la rama de Neon de test que usa el preview
+#     (el seed crea ahí los usuarios E2E con contraseñas aleatorias).
+#   - secrets.VERCEL_AUTOMATION_BYPASS_SECRET: si el preview tiene
+#     Deployment Protection.
+
+on:
+  deployment_status:
+
+jobs:
+  e2e:
+    if: >-
+      vars.E2E_ENABLED == 'true' &&
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Seed de test (credenciales aleatorias)
+        run: node --import tsx scripts/seed-test.ts
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
