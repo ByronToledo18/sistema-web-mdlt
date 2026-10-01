@@ -12,5 +12,6 @@ export default defineConfig({
     url: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!,
   },
   // Tablas legacy sin uso en el código (ver docs/database-schema.md)
-  tablesFilter: ["!facturas_proveedor", "!factura_items", "!playing_with_neon"],
+  // _entorno: marcador de la base de pruebas (lo exige scripts/seed-test.ts), fuera del esquema.
+  tablesFilter: ["!facturas_proveedor", "!factura_items", "!playing_with_neon", "!_entorno"],
 })
