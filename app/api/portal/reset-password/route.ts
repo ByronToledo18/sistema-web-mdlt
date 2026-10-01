@@ -32,10 +32,12 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await hashPassword(newPassword)
 
-    // Un solo uso: se limpian el token y su expiración al consumirse.
+    // Un solo uso: se limpian el token y su expiración al consumirse. También
+    // se invalidan las sesiones abiertas, por si alguien más tenía acceso.
     await sql`
       UPDATE clientes
-      SET hash_password = ${hashedPassword}, reset_token = NULL, reset_token_expiry = NULL, debe_cambiar_password = false
+      SET hash_password = ${hashedPassword}, reset_token = NULL, reset_token_expiry = NULL, debe_cambiar_password = false,
+          token_version = token_version + 1
       WHERE id = ${cliente.id}
     `
 

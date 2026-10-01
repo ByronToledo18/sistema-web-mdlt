@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createAuditLog } from "@/lib/audit"
-import { verifyToken } from "@/lib/auth"
+import { verifyToken } from "@/lib/jwt"
 import type { NextRequest } from "next/server"
 
 export async function GET() {

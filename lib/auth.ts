@@ -1,112 +1,84 @@
-import { SignJWT, jwtVerify } from "jose"
+import "server-only"
+
+import { eq } from "drizzle-orm"
 import { cookies } from "next/headers"
+import { HttpError } from "@/lib/http"
+import { verifyAdminToken, verifyPortalToken, type ClientePayload, type UserPayload } from "@/lib/jwt"
+import { db } from "@/server/db/client"
+import { clientes, roles, usuarios } from "@/server/db/schema"
 
-// En producción, JWT_SECRET debe venir de una variable de entorno real - un
-// fallback silencioso a un valor conocido permitiría forjar tokens válidos.
-// En desarrollo se permite el fallback para no bloquear `npm run dev` sin .env.local.
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error("JWT_SECRET no está configurado. Defínelo como variable de entorno antes de desplegar.")
-}
+export type { ClientePayload, UserPayload } from "@/lib/jwt"
+export { generatePortalToken, generateToken } from "@/lib/jwt"
 
-export const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "dev-only-insecure-secret-do-not-deploy")
+// ---------------------------------------------------------------------------
+// Sesión
+//
+// Además de la firma (lib/jwt.ts), cada lectura de sesión confirma contra la
+// BD que la cuenta sigue activa y que su token_version es el del token. Así,
+// desactivar una cuenta, cambiarle el rol o resetear su contraseña invalida
+// las sesiones abiertas. withAuth, withCliente, adminAction y getSessionUser
+// pasan todos por estas dos funciones.
+// ---------------------------------------------------------------------------
 
-export interface UserPayload {
-  id: number
-  email: string
-  nombre: string
-  rol: string
-  rol_id: number
-}
-
-export interface ClientePayload {
-  id: number
-  email: string
-  nombre: string
-}
-
-// Obtener cliente del portal autenticado desde la cookie portal-auth-token
-export async function getClienteFromToken(): Promise<ClientePayload | null> {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("portal-auth-token")
-
-  if (!token) {
-    return null
-  }
-
-  try {
-    const verified = await jwtVerify(token.value, JWT_SECRET)
-    return verified.payload.cliente as ClientePayload
-  } catch {
-    return null
-  }
-}
-
-// Middleware helper para proteger rutas del portal de clientes
-export async function requirePortalAuth(): Promise<ClientePayload> {
-  const cliente = await getClienteFromToken()
-
-  if (!cliente) {
-    throw new Error("No autenticado")
-  }
-
-  return cliente
-}
-
-// Generar token JWT
-export async function generateToken(user: UserPayload): Promise<string> {
-  return await new SignJWT({ user })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(JWT_SECRET)
-}
-
-// Verificar token JWT
-export async function verifyToken(token: string): Promise<UserPayload | null> {
-  try {
-    const verified = await jwtVerify(token, JWT_SECRET)
-    return verified.payload.user as UserPayload
-  } catch (error) {
-    console.error("[v0] Token verification failed:", error)
-    return null
-  }
-}
-
-// Obtener usuario actual desde cookies
+// Usuario del panel admin (cookie auth-token). El rol se toma de la BD, no del token.
 export async function getCurrentUser(): Promise<UserPayload | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")
-
   if (!token) {
     return null
   }
 
-  return await verifyToken(token.value)
-}
-
-export async function getUserFromRequest(request: Request): Promise<UserPayload | null> {
-  const cookieHeader = request.headers.get("cookie")
-  if (!cookieHeader) {
+  const decoded = await verifyAdminToken(token.value)
+  if (!decoded) {
     return null
   }
 
-  // Parse cookies from header
-  const cookies = cookieHeader.split(";").reduce(
-    (acc, cookie) => {
-      const [key, value] = cookie.trim().split("=")
-      acc[key] = value
-      return acc
-    },
-    {} as Record<string, string>,
-  )
+  const [row] = await db
+    .select({
+      activo: usuarios.activo,
+      token_version: usuarios.token_version,
+      rol_id: usuarios.rol_id,
+      rol: roles.nombre,
+    })
+    .from(usuarios)
+    .innerJoin(roles, eq(usuarios.rol_id, roles.id))
+    .where(eq(usuarios.id, decoded.user.id))
 
-  const token = cookies["auth-token"]
+  if (!row || !row.activo || row.token_version !== decoded.tv) {
+    return null
+  }
+
+  return { ...decoded.user, rol: row.rol, rol_id: row.rol_id }
+}
+
+// Cliente del portal (cookie portal-auth-token).
+export async function getClienteFromToken(): Promise<ClientePayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get("portal-auth-token")
   if (!token) {
     return null
   }
 
-  return await verifyToken(token)
+  const decoded = await verifyPortalToken(token.value)
+  if (!decoded) {
+    return null
+  }
+
+  const [row] = await db
+    .select({ activo: clientes.activo, token_version: clientes.token_version })
+    .from(clientes)
+    .where(eq(clientes.id, decoded.cliente.id))
+
+  if (!row || !row.activo || row.token_version !== decoded.tv) {
+    return null
+  }
+
+  return decoded.cliente
 }
+
+// ---------------------------------------------------------------------------
+// Contraseñas
+// ---------------------------------------------------------------------------
 
 // Hash de contraseña usando Web Crypto API (PBKDF2)
 export async function hashPassword(password: string): Promise<string> {
@@ -193,22 +165,19 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   }
 }
 
-// Verificar si el usuario tiene un rol específico
-export function hasRole(user: UserPayload | null, roles: string[]): boolean {
-  if (!user) return false
-  return roles.includes(user.rol)
-}
+// ---------------------------------------------------------------------------
+// Legacy: solo lo usa app/api/upload hasta migrarlo a withAuth.
+// ---------------------------------------------------------------------------
 
-// Middleware helper para proteger rutas
 export async function requireAuth(allowedRoles?: string[]): Promise<UserPayload> {
   const user = await getCurrentUser()
 
   if (!user) {
-    throw new Error("No autenticado")
+    throw new HttpError(401, "No autenticado")
   }
 
-  if (allowedRoles && !hasRole(user, allowedRoles)) {
-    throw new Error("No autorizado")
+  if (allowedRoles && !allowedRoles.includes(user.rol)) {
+    throw new HttpError(403, "No autorizado")
   }
 
   return user

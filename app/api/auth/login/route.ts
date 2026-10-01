@@ -21,10 +21,11 @@ export async function POST(request: NextRequest) {
       activo: boolean
       rol_id: number
       rol_nombre: string
+      token_version: number
     }
 
     const users = await sql`
-      SELECT u.id, u.email, u.nombre, u.hash_password, u.activo, u.rol_id, r.nombre as rol_nombre
+      SELECT u.id, u.email, u.nombre, u.hash_password, u.activo, u.rol_id, u.token_version, r.nombre as rol_nombre
       FROM usuarios u
       JOIN roles r ON u.rol_id = r.id
       WHERE u.email = ${email}
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       nombre: user.nombre,
       rol: user.rol_nombre,
       rol_id: user.rol_id,
-    })
+    }, user.token_version)
 
     // Establecer cookie
     const cookieStore = await cookies()

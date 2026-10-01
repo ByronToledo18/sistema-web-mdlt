@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { verifyPassword, JWT_SECRET } from "@/lib/auth"
-import { SignJWT } from "jose"
+import { verifyPassword, generatePortalToken } from "@/lib/auth"
 import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
@@ -14,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar cliente
     const result = await sql`
-      SELECT id, nombre, email, hash_password, activo
+      SELECT id, nombre, email, hash_password, activo, token_version
       FROM clientes
       WHERE email = ${email}
     `
@@ -49,11 +48,10 @@ export async function POST(request: NextRequest) {
     await sql`UPDATE clientes SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ${cliente.id}`
 
     // Generar token JWT
-    const token = await new SignJWT({ cliente: { id: cliente.id, email: cliente.email, nombre: cliente.nombre } })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("7d")
-      .sign(JWT_SECRET)
+    const token = await generatePortalToken(
+      { id: cliente.id, email: cliente.email, nombre: cliente.nombre },
+      cliente.token_version,
+    )
 
     // Establecer cookie
     const cookieStore = await cookies()

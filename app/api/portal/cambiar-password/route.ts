@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { hashPassword, verifyPassword, getClienteFromToken } from "@/lib/auth"
+import { cookies } from "next/headers"
+import { hashPassword, verifyPassword, getClienteFromToken, generatePortalToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,12 +44,24 @@ export async function POST(request: NextRequest) {
     // Hash de la nueva contraseña
     const hashedPassword = await hashPassword(newPassword)
 
-    // Actualizar contraseña
-    await sql`
+    // Actualizar contraseña e invalidar las demás sesiones abiertas
+    const updated = await sql`
       UPDATE clientes
-      SET hash_password = ${hashedPassword}
+      SET hash_password = ${hashedPassword}, token_version = token_version + 1
       WHERE id = ${cliente.id}
+      RETURNING token_version
     `
+
+    // La sesión actual sigue abierta con un token nuevo
+    const token = await generatePortalToken(clienteToken, updated[0].token_version)
+    const cookieStore = await cookies()
+    cookieStore.set("portal-auth-token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 días
+      path: "/",
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

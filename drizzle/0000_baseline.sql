@@ -1,4 +1,4 @@
--- Baseline: estado de la base de producción al iniciar la Fase 2 (scripts 001–011).
+-- Baseline: estado de la base de producción al iniciar la Fase 2 (scripts 001–011 + 012 token_version).
 -- NO se ejecuta: en una base existente se registra como aplicada con `pnpm db:baseline`.
 -- Solo sirve para crear una base vacía desde cero (p. ej. una rama de Neon de test).
 
@@ -31,6 +31,7 @@ CREATE TABLE "clientes" (
 	"reset_token_expiry" timestamp,
 	"requiere_cambio_password" boolean DEFAULT false,
 	"debe_cambiar_password" boolean DEFAULT false,
+	"token_version" integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "clientes_cedula_key" UNIQUE("cedula")
 );
 --> statement-breakpoint
@@ -273,6 +274,7 @@ CREATE TABLE "usuarios" (
 	"email" varchar(100) NOT NULL,
 	"hash_password" varchar(255) NOT NULL,
 	"activo" boolean DEFAULT true,
+	"token_version" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT "usuarios_email_key" UNIQUE("email")
