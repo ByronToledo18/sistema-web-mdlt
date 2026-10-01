@@ -5,7 +5,9 @@ import { getClienteFromToken, getCurrentUser } from "@/lib/auth"
 import { generatePortalToken, generateToken } from "@/lib/jwt"
 import { adminAction } from "@/server/auth/action"
 import { withAuth, withCliente } from "@/server/auth/guard"
-import { requireCliente } from "@/server/auth/session"
+import { requireCliente, requireUser } from "@/server/auth/session"
+import { hashPassword, verifyPassword } from "@/lib/password"
+import { cambiarPasswordUsuario } from "@/server/services/auth"
 import { db } from "@/server/db/client"
 import { clientes, roles, usuarios } from "@/server/db/schema"
 import { alternarEstadoCliente } from "@/server/services/clientes"
@@ -231,5 +233,55 @@ describe("requireCliente (páginas del portal)", () => {
 
     await alternarEstadoCliente(c.id) // desactivar incrementa token_version
     await expect(requireCliente()).rejects.toMatchObject({ digest: expect.stringContaining("/portal/login") })
+  })
+})
+
+describe("debe_cambiar_password (contraseña asignada por otra persona)", () => {
+  async function usuarioConMarca() {
+    const r = await crearRoles()
+    const u = await crearUsuario(r.asistente)
+    await db
+      .update(usuarios)
+      .set({ hash_password: await hashPassword("asignada"), debe_cambiar_password: true })
+      .where(eq(usuarios.id, u.id))
+    await loginAdmin(u, "asistente")
+    return u
+  }
+
+  test("withAuth y adminAction responden 403; solo la acción de cambio pasa", async () => {
+    await usuarioConMarca()
+
+    expect(await getCurrentUser()).toMatchObject({ debe_cambiar_password: true })
+    const res = await rutaAdmin(request, context)
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: "Debes cambiar tu contraseña antes de continuar" })
+    expect(await accionAdmin()).toEqual({ ok: false, error: "Debes cambiar tu contraseña antes de continuar" })
+    expect(
+      await adminAction({ permission: null, error: "Error", permitirCambioPendiente: true }, async () => "hecho"),
+    ).toEqual({ ok: true, data: "hecho" })
+  })
+
+  test("requireUser redirige a /cambiar-password", async () => {
+    await usuarioConMarca()
+    await expect(requireUser()).rejects.toMatchObject({ digest: expect.stringContaining("/cambiar-password") })
+  })
+
+  test("al cambiarla se limpia la marca y se incrementa token_version", async () => {
+    const u = await usuarioConMarca()
+
+    await expect(cambiarPasswordUsuario(u.id, "incorrecta", "nueva-clave")).rejects.toMatchObject({ status: 400 })
+    await expect(cambiarPasswordUsuario(u.id, "asignada", "asignada")).rejects.toMatchObject({ status: 400 })
+
+    const tv = await cambiarPasswordUsuario(u.id, "asignada", "nueva-clave")
+    expect(tv).toBe(1)
+    const [fila] = await db.select().from(usuarios).where(eq(usuarios.id, u.id))
+    expect(fila.debe_cambiar_password).toBe(false)
+    expect(await verifyPassword("nueva-clave", fila.hash_password)).toBe(true)
+
+    // El token anterior queda revocado; con uno nuevo ya no hay restricción.
+    expect((await rutaAdmin(request, context)).status).toBe(401)
+    await loginAdmin(u, "asistente")
+    expect((await rutaAdmin(request, context)).status).toBe(200)
+    expect(await requireUser()).toMatchObject({ id: u.id, debe_cambiar_password: false })
   })
 })

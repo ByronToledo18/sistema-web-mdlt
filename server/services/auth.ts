@@ -1,6 +1,7 @@
 import "server-only"
 
 import { and, eq, sql, type Column } from "drizzle-orm"
+import { HttpError } from "@/lib/http"
 import type { UserPayload } from "@/lib/jwt"
 import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
 import { db } from "@/server/db/client"
@@ -47,6 +48,7 @@ export async function iniciarSesionAdmin(
       rol_id: usuarios.rol_id,
       rol: roles.nombre,
       token_version: usuarios.token_version,
+      debe_cambiar_password: usuarios.debe_cambiar_password,
     })
     .from(usuarios)
     .innerJoin(roles, eq(usuarios.rol_id, roles.id))
@@ -106,7 +108,14 @@ export async function iniciarSesionAdmin(
 
   return {
     ok: true,
-    sesion: { id: usuario.id, email: usuario.email, nombre: usuario.nombre, rol: usuario.rol, rol_id: usuario.rol_id },
+    sesion: {
+      id: usuario.id,
+      email: usuario.email,
+      nombre: usuario.nombre,
+      rol: usuario.rol,
+      rol_id: usuario.rol_id,
+      debe_cambiar_password: usuario.debe_cambiar_password,
+    },
     tokenVersion: usuario.token_version,
   }
 }
@@ -123,4 +132,47 @@ export async function revocarSesionUsuario(id: number, tv: unknown): Promise<boo
     .where(and(eq(usuarios.id, id), eq(usuarios.token_version, tv)))
     .returning({ id: usuarios.id })
   return filas.length > 0
+}
+
+// Cambio de la propia contraseña del panel admin (/cambiar-password). Limpia
+// debe_cambiar_password e incrementa token_version (cierra las demás
+// sesiones); devuelve la versión nueva para re-emitir el token de la sesión
+// actual.
+export async function cambiarPasswordUsuario(
+  id: number,
+  passwordActual: string,
+  nuevaPassword: string,
+  meta: RequestMeta = {},
+): Promise<number> {
+  const [usuario] = await db
+    .select({ id: usuarios.id, email: usuarios.email, hash_password: usuarios.hash_password })
+    .from(usuarios)
+    .where(eq(usuarios.id, id))
+  if (!usuario || !(await verifyPassword(passwordActual, usuario.hash_password))) {
+    throw new HttpError(400, "La contraseña actual es incorrecta")
+  }
+  if (passwordActual === nuevaPassword) {
+    throw new HttpError(400, "La nueva contraseña debe ser distinta de la actual")
+  }
+
+  const [actualizado] = await db
+    .update(usuarios)
+    .set({
+      hash_password: await hashPassword(nuevaPassword),
+      debe_cambiar_password: false,
+      token_version: sql`${usuarios.token_version} + 1`,
+      updated_at: sql`CURRENT_TIMESTAMP`,
+    })
+    .where(eq(usuarios.id, id))
+    .returning({ token_version: usuarios.token_version })
+
+  await registrarAuditoria({
+    usuario_id: id,
+    accion: "CAMBIO_PASSWORD",
+    modulo: "auth",
+    descripcion: `Cambió su contraseña: ${usuario.email}`,
+    ip_address: meta.ip,
+    user_agent: meta.userAgent,
+  })
+  return actualizado.token_version
 }

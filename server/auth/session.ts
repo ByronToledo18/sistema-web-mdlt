@@ -10,12 +10,16 @@ import type { Action, Module } from "@/lib/permissions"
 // la página compartan una sola verificación del token por request.
 export const getSessionUser = cache(getCurrentUser)
 
-// Para layouts y páginas del admin: sin sesión, al login.
+// Para layouts y páginas del admin: sin sesión, al login. Con una contraseña
+// asignada por otra persona (debe_cambiar_password), solo /cambiar-password.
 export async function requireUser(): Promise<UserPayload> {
   const user = await getSessionUser()
   if (!user) redirect("/login")
+  if (user.debe_cambiar_password) redirect(CAMBIAR_PASSWORD_PATH)
   return user
 }
+
+export const CAMBIAR_PASSWORD_PATH = "/cambiar-password"
 
 // Para páginas que exigen un permiso concreto. El middleware ya filtra por
 // ROUTE_MODULES; esto cubre los permisos más finos (p. ej. crear vs. leer).

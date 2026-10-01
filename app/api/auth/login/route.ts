@@ -28,5 +28,7 @@ export const POST = withErrors({ error: "Error en el servidor" }, async (request
   return NextResponse.json({
     success: true,
     user: { id: user.id, email: user.email, nombre: user.nombre, rol: user.rol },
+    // Si es true, la única página disponible es /cambiar-password.
+    debe_cambiar_password: !!user.debe_cambiar_password,
   })
 })

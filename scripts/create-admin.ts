@@ -5,7 +5,8 @@
 //
 // Requiere que la base ya tenga las migraciones aplicadas (roles en
 // drizzle/0001_datos_referencia.sql). Las contraseñas se generan en el momento y
-// se muestran UNA sola vez: guárdalas y cámbialas después del primer login.
+// se muestran UNA sola vez: guárdalas. Los usuarios quedan con
+// debe_cambiar_password: en el primer login solo pueden ir a /cambiar-password.
 // Resetear incrementa token_version, así que cierra las sesiones abiertas.
 
 import { randomBytes } from "node:crypto"
@@ -39,14 +40,14 @@ async function setupUser(email: string, nombre: string, rolNombre: string) {
     await sql`
       UPDATE usuarios
       SET hash_password = ${hash}, rol_id = ${rol[0].id}, nombre = ${nombre}, activo = true,
-          token_version = token_version + 1
+          debe_cambiar_password = true, token_version = token_version + 1
       WHERE email = ${email}
     `
   } else {
     console.log(`Creando usuario ${email}...`)
     await sql`
-      INSERT INTO usuarios (rol_id, nombre, email, hash_password, activo)
-      VALUES (${rol[0].id}, ${nombre}, ${email}, ${hash}, true)
+      INSERT INTO usuarios (rol_id, nombre, email, hash_password, activo, debe_cambiar_password)
+      VALUES (${rol[0].id}, ${nombre}, ${email}, ${hash}, true, true)
     `
   }
   return { email, password, rol: rolNombre }
@@ -62,7 +63,7 @@ async function main() {
   for (const r of results) {
     console.log(`  [${r.rol}] ${r.email} — ${r.password}`)
   }
-  console.log("\nCambia estas contraseñas después del primer login.")
+  console.log("\nEn el primer login se pedirá cambiar estas contraseñas.")
 }
 
 main().catch((error) => {

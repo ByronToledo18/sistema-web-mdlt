@@ -80,6 +80,8 @@ async function usuario(datos: { email: string; nombre: string; rol: string }, pa
     rol_id: await rolId(datos.rol),
     hash_password: await hashPassword(pass),
     activo: true,
+    // Los usuarios del e2e entran directo al panel (sin /cambiar-password).
+    debe_cambiar_password: false,
   }
   await db
     .insert(usuarios)

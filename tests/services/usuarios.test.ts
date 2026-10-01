@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest"
 import { eq } from "drizzle-orm"
 import { db } from "@/server/db/client"
-import { roles, usuarios } from "@/server/db/schema"
+import { auditoria, roles, usuarios } from "@/server/db/schema"
 import {
   alternarEstadoUsuario,
   cambiarRolUsuario,
@@ -114,8 +114,8 @@ describe("límites del rol soporte", () => {
   }
 
   test("soporte puede crear un usuario administrador", async () => {
-    const { r } = await escenario()
-    const nuevo = await crearUsuarioServicio({
+    const { r, actor } = await escenario()
+    const nuevo = await crearUsuarioServicio(actor, {
       nombre: "Nuevo",
       email: "nuevo@test.local",
       password: "secreta",
@@ -177,5 +177,65 @@ describe("límites del rol soporte", () => {
     await cambiarRolUsuario(actor, asis.id, r.administrador)
     await cambiarRolUsuario(actor, admin2.id, r.asistente)
     expect(await alternarEstadoUsuario(actor, admin2.id)).toBe(false)
+  })
+})
+
+describe("controles sobre usuarios creados o reseteados por otra persona", () => {
+  async function escenario() {
+    const r = await crearRoles()
+    const admin = await crearUsuario(r.administrador)
+    const sop = await crearUsuario(r.soporte)
+    await crearUsuario(r.soporte)
+    const asis = await crearUsuario(r.asistente)
+    return { r, admin, sop, asis }
+  }
+
+  async function filaDe(id: number) {
+    const [u] = await db.select().from(usuarios).where(eq(usuarios.id, id))
+    return u
+  }
+
+  async function auditoriaDe(accion: string) {
+    return db.select().from(auditoria).where(eq(auditoria.accion, accion))
+  }
+
+  test("soporte crea un administrador: queda con debe_cambiar_password y la auditoría guarda el rol", async () => {
+    const { r, sop } = await escenario()
+    const nuevo = await crearUsuarioServicio(
+      { id: sop.id, rol: "soporte" },
+      { nombre: "Nuevo", email: "nuevo@test.local", password: "secreta", rol_id: r.administrador },
+    )
+
+    expect((await filaDe(nuevo.id)).debe_cambiar_password).toBe(true)
+    const [registro] = await auditoriaDe("CREAR")
+    expect(registro.usuario_id).toBe(sop.id)
+    expect(registro.descripcion).toContain("con el rol administrador")
+    expect(registro.metadata).toMatchObject({ usuario_id: nuevo.id, rol: "administrador", actor_rol: "soporte" })
+  })
+
+  test("el administrador que crea un usuario también lo deja con debe_cambiar_password", async () => {
+    const { r, admin } = await escenario()
+    const nuevo = await crearUsuarioServicio(
+      { id: admin.id, rol: "administrador" },
+      { nombre: "Otro", email: "otro@test.local", password: "secreta", rol_id: r.asistente },
+    )
+    expect((await filaDe(nuevo.id)).debe_cambiar_password).toBe(true)
+    expect((await auditoriaDe("CREAR"))[0].metadata).toMatchObject({ rol: "asistente", actor_rol: "administrador" })
+  })
+
+  test("cada cambio de rol queda en la auditoría con el rol anterior y el nuevo", async () => {
+    const { r, admin, asis } = await escenario()
+    await cambiarRolUsuario({ id: admin.id, rol: "administrador" }, asis.id, r.soporte)
+
+    const [registro] = await auditoriaDe("CAMBIO_ROL")
+    expect(registro.descripcion).toContain("de asistente a soporte")
+    expect(registro.metadata).toMatchObject({ usuario_id: asis.id, rol_anterior: "asistente", rol_nuevo: "soporte" })
+  })
+
+  test("el reseteo de contraseña deja debe_cambiar_password", async () => {
+    const { sop, asis } = await escenario()
+    await resetearPasswordUsuario({ id: sop.id, rol: "soporte" }, asis.id, "otra-clave")
+    expect((await filaDe(asis.id)).debe_cambiar_password).toBe(true)
+    expect(await auditoriaDe("RESET_PASSWORD")).toHaveLength(1)
   })
 })

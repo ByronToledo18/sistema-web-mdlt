@@ -7,6 +7,7 @@ import { db, withTx, type Tx } from "@/server/db/client"
 import { roles, tickets, usuarios } from "@/server/db/schema"
 import type { CrearUsuario, PrioridadTicket, TipoTicket } from "@/server/validators/usuarios"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
+import { registrarAuditoria } from "./auditoria"
 import { emailIgual } from "./auth"
 
 // Roles que siempre tienen que conservar al menos un usuario activo.
@@ -123,8 +124,11 @@ function assertPuedeGestionar(actor: Actor, usuario: { rol_nombre: string }, acc
   }
 }
 
-export async function crearUsuario(input: CrearUsuario) {
-  await assertRolExiste(input.rol_id)
+// La contraseña la elige quien crea el usuario (soporte o un administrador):
+// el usuario nuevo queda con debe_cambiar_password y en su primer ingreso
+// solo puede cambiarla (/cambiar-password).
+export async function crearUsuario(actor: Actor, input: CrearUsuario) {
+  const rol = await assertRolExiste(input.rol_id)
   const [existente] = await db
     .select({ id: usuarios.id })
     .from(usuarios)
@@ -141,9 +145,18 @@ export async function crearUsuario(input: CrearUsuario) {
         hash_password: await hashPassword(input.password),
         rol_id: input.rol_id,
         activo: true,
+        debe_cambiar_password: true,
       })
       .returning({ id: usuarios.id, nombre: usuarios.nombre, email: usuarios.email })
-    return usuario
+    // Queda registrado el rol asignado (soporte puede crear administradores).
+    await registrarAuditoria({
+      usuario_id: actor.id,
+      accion: "CREAR",
+      modulo: "usuarios",
+      descripcion: `Creó el usuario ${usuario.nombre} (${usuario.email}) con el rol ${rol.nombre}`,
+      metadata: { usuario_id: usuario.id, rol: rol.nombre, actor_rol: actor.rol },
+    })
+    return { ...usuario, rol_nombre: rol.nombre }
   } catch (error) {
     if (pgErrorCode(error) === PG_UNIQUE_VIOLATION) throw new HttpError(400, "El email ya está registrado")
     throw error
@@ -163,7 +176,7 @@ export async function eliminarUsuario(actor: Actor, id: number) {
 
 export async function cambiarRolUsuario(actor: Actor, id: number, rolId: number) {
   const rolNuevo = await assertRolExiste(rolId)
-  return withTx(async (tx) => {
+  const usuario = await withTx(async (tx) => {
     await bloquearCambiosDeUsuarios(tx)
     const usuario = await obtenerConRol(tx, id)
     assertPuedeCambiarRol(actor, usuario, rolNuevo.nombre)
@@ -181,6 +194,15 @@ export async function cambiarRolUsuario(actor: Actor, id: number, rolId: number)
       .where(eq(usuarios.id, id))
     return usuario
   })
+  // Cada cambio de rol queda con el rol anterior y el nuevo.
+  await registrarAuditoria({
+    usuario_id: actor.id,
+    accion: "CAMBIO_ROL",
+    modulo: "usuarios",
+    descripcion: `Cambió el rol del usuario ${usuario.nombre} (${usuario.email}) de ${usuario.rol_nombre} a ${rolNuevo.nombre}`,
+    metadata: { usuario_id: usuario.id, rol_anterior: usuario.rol_nombre, rol_nuevo: rolNuevo.nombre, actor_rol: actor.rol },
+  })
+  return { ...usuario, rol_nuevo: rolNuevo.nombre }
 }
 
 export async function alternarEstadoUsuario(actor: Actor, id: number): Promise<boolean> {
@@ -203,9 +225,9 @@ export async function alternarEstadoUsuario(actor: Actor, id: number): Promise<b
   })
 }
 
-export async function resetearPasswordUsuario(actor: Actor, id: number, nuevaPassword: string): Promise<void> {
+export async function resetearPasswordUsuario(actor: Actor, id: number, nuevaPassword: string) {
   const hash = await hashPassword(nuevaPassword)
-  await withTx(async (tx) => {
+  const usuario = await withTx(async (tx) => {
     // Con el lock, nadie puede volver administrador al usuario entre la
     // verificación y el UPDATE.
     await bloquearCambiosDeUsuarios(tx)
@@ -215,11 +237,23 @@ export async function resetearPasswordUsuario(actor: Actor, id: number, nuevaPas
       .update(usuarios)
       .set({
         hash_password: hash,
+        // La contraseña nueva la conoce quien la reseteó: el usuario debe
+        // cambiarla en su próximo ingreso.
+        debe_cambiar_password: true,
         token_version: sql`${usuarios.token_version} + 1`,
         updated_at: sql`CURRENT_TIMESTAMP`,
       })
       .where(eq(usuarios.id, id))
+    return usuario
   })
+  await registrarAuditoria({
+    usuario_id: actor.id,
+    accion: "RESET_PASSWORD",
+    modulo: "usuarios",
+    descripcion: `Contraseña reseteada para ${usuario.nombre} (${usuario.email}); deberá cambiarla al ingresar`,
+    metadata: { usuario_id: usuario.id, rol: usuario.rol_nombre, actor_rol: actor.rol },
+  })
+  return usuario
 }
 
 // --- Tickets de soporte ----------------------------------------------------------------
