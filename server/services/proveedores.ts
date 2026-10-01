@@ -5,13 +5,15 @@ import { HttpError } from "@/lib/http"
 import { db, withTx } from "@/server/db/client"
 import { productos, proveedores, proveedorFacturaItems, proveedorFacturas, proveedorPagos } from "@/server/db/schema"
 import type { CrearFacturaProveedor, DatosProveedor, PagoFacturaProveedor } from "@/server/validators/proveedores"
-import { fromCents, pgErrorCode, PG_UNIQUE_VIOLATION, toCents } from "./_shared"
+import { fromCents, paginar, pgErrorCode, PG_UNIQUE_VIOLATION, toCents } from "./_shared"
 
 const IVA_RATE = 0.15
 
 // --- Proveedores --------------------------------------------------------------------
 
-export async function listarProveedores(filtros: { search?: string; mostrarInactivos: boolean }) {
+type FiltrosProveedores = { search?: string; mostrarInactivos: boolean }
+
+function consultaProveedores(filtros: FiltrosProveedores) {
   const patron = `%${filtros.search ?? ""}%`
   return db
     .select()
@@ -24,7 +26,16 @@ export async function listarProveedores(filtros: { search?: string; mostrarInact
         filtros.mostrarInactivos ? undefined : eq(proveedores.activo, true),
       ),
     )
-    .orderBy(asc(proveedores.nombre))
+    .orderBy(asc(proveedores.nombre), asc(proveedores.id))
+    .$dynamic()
+}
+
+export async function listarProveedores(filtros: FiltrosProveedores) {
+  return consultaProveedores(filtros)
+}
+
+export function paginaDeProveedores(filtros: FiltrosProveedores, pagina: number) {
+  return paginar(consultaProveedores(filtros), pagina)
 }
 
 export async function obtenerProveedor(id: number) {

@@ -1,12 +1,13 @@
 import "server-only"
 
 import { and, asc, count, desc, eq, sql } from "drizzle-orm"
-import { hashPassword } from "@/lib/auth"
+import { hashPassword, type UserPayload } from "@/lib/auth"
 import { HttpError } from "@/lib/http"
 import { db, withTx, type Tx } from "@/server/db/client"
 import { roles, tickets, usuarios } from "@/server/db/schema"
-import type { CrearUsuario } from "@/server/validators/usuarios"
+import type { CrearUsuario, PrioridadTicket, TipoTicket } from "@/server/validators/usuarios"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
+import { emailIgual } from "./auth"
 
 // Roles que siempre tienen que conservar al menos un usuario activo.
 const ROLES_PROTEGIDOS: Record<string, string> = {
@@ -81,13 +82,54 @@ export async function listarRoles() {
 }
 
 async function assertRolExiste(rolId: number) {
-  const [rol] = await db.select({ id: roles.id }).from(roles).where(eq(roles.id, rolId))
+  const [rol] = await db.select({ id: roles.id, nombre: roles.nombre }).from(roles).where(eq(roles.id, rolId))
   if (!rol) throw new HttpError(400, "Rol inválido")
+  return rol
+}
+
+// --- Límites de soporte ----------------------------------------------------------------
+//
+// Soporte administra usuarios (y puede crear administradores nuevos), pero no
+// puede escalar privilegios ni tomar el control de una cuenta de
+// administrador: no cambia su propio rol, no cambia el rol de un administrador
+// ni da el rol administrador a un usuario existente, y no resetea la
+// contraseña ni desactiva/elimina a un administrador. El administrador no
+// tiene estas restricciones. El rol del actor viene de la BD (getCurrentUser).
+
+export type Actor = Pick<UserPayload, "id" | "rol">
+
+const ADMINISTRADOR = "administrador"
+
+function esAdministrador(actor: Actor) {
+  return actor.rol === ADMINISTRADOR
+}
+
+function assertPuedeCambiarRol(actor: Actor, usuario: { id: number; rol_nombre: string }, rolNuevo: string) {
+  if (esAdministrador(actor)) return
+  if (usuario.id === actor.id) {
+    throw new HttpError(403, "No puedes cambiar tu propio rol")
+  }
+  if (usuario.rol_nombre === ADMINISTRADOR) {
+    throw new HttpError(403, "Solo un administrador puede cambiar el rol de otro administrador")
+  }
+  if (rolNuevo === ADMINISTRADOR) {
+    throw new HttpError(403, "Solo un administrador puede asignar el rol administrador a un usuario existente")
+  }
+}
+
+function assertPuedeGestionar(actor: Actor, usuario: { rol_nombre: string }, accion: string) {
+  if (!esAdministrador(actor) && usuario.rol_nombre === ADMINISTRADOR) {
+    throw new HttpError(403, `Solo un administrador puede ${accion} a otro administrador`)
+  }
 }
 
 export async function crearUsuario(input: CrearUsuario) {
   await assertRolExiste(input.rol_id)
-  const [existente] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.email, input.email))
+  const [existente] = await db
+    .select({ id: usuarios.id })
+    .from(usuarios)
+    .where(emailIgual(usuarios.email, input.email))
+    .limit(1)
   if (existente) throw new HttpError(400, "El email ya está registrado")
 
   try {
@@ -108,21 +150,23 @@ export async function crearUsuario(input: CrearUsuario) {
   }
 }
 
-export async function eliminarUsuario(id: number) {
+export async function eliminarUsuario(actor: Actor, id: number) {
   return withTx(async (tx) => {
     await bloquearCambiosDeUsuarios(tx)
     const usuario = await obtenerConRol(tx, id)
+    assertPuedeGestionar(actor, usuario, "eliminar")
     await assertNoEsElUltimo(tx, usuario, "eliminar")
     await tx.delete(usuarios).where(eq(usuarios.id, id))
     return usuario
   })
 }
 
-export async function cambiarRolUsuario(id: number, rolId: number) {
-  await assertRolExiste(rolId)
+export async function cambiarRolUsuario(actor: Actor, id: number, rolId: number) {
+  const rolNuevo = await assertRolExiste(rolId)
   return withTx(async (tx) => {
     await bloquearCambiosDeUsuarios(tx)
     const usuario = await obtenerConRol(tx, id)
+    assertPuedeCambiarRol(actor, usuario, rolNuevo.nombre)
     if (usuario.rol_id !== rolId) {
       await assertNoEsElUltimo(tx, usuario, "cambiar el rol del")
     }
@@ -139,10 +183,11 @@ export async function cambiarRolUsuario(id: number, rolId: number) {
   })
 }
 
-export async function alternarEstadoUsuario(id: number): Promise<boolean> {
+export async function alternarEstadoUsuario(actor: Actor, id: number): Promise<boolean> {
   return withTx(async (tx) => {
     await bloquearCambiosDeUsuarios(tx)
     const usuario = await obtenerConRol(tx, id)
+    assertPuedeGestionar(actor, usuario, "desactivar o reactivar")
     await assertNoEsElUltimo(tx, usuario, "desactivar")
     const [actualizado] = await tx
       .update(usuarios)
@@ -158,17 +203,23 @@ export async function alternarEstadoUsuario(id: number): Promise<boolean> {
   })
 }
 
-export async function resetearPasswordUsuario(id: number, nuevaPassword: string): Promise<void> {
-  const actualizados = await db
-    .update(usuarios)
-    .set({
-      hash_password: await hashPassword(nuevaPassword),
-      token_version: sql`${usuarios.token_version} + 1`,
-      updated_at: sql`CURRENT_TIMESTAMP`,
-    })
-    .where(eq(usuarios.id, id))
-    .returning({ id: usuarios.id })
-  if (actualizados.length === 0) throw new HttpError(404, "Usuario no encontrado")
+export async function resetearPasswordUsuario(actor: Actor, id: number, nuevaPassword: string): Promise<void> {
+  const hash = await hashPassword(nuevaPassword)
+  await withTx(async (tx) => {
+    // Con el lock, nadie puede volver administrador al usuario entre la
+    // verificación y el UPDATE.
+    await bloquearCambiosDeUsuarios(tx)
+    const usuario = await obtenerConRol(tx, id)
+    assertPuedeGestionar(actor, usuario, "resetear la contraseña de")
+    await tx
+      .update(usuarios)
+      .set({
+        hash_password: hash,
+        token_version: sql`${usuarios.token_version} + 1`,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(usuarios.id, id))
+  })
 }
 
 // --- Tickets de soporte ----------------------------------------------------------------
@@ -190,9 +241,11 @@ export async function listarTickets(estado?: string) {
     .orderBy(desc(tickets.created_at))
 }
 
+// Solo para el servidor: el POST público valida con crearTicketBody, que no
+// admite "reseteo_contraseña".
 export async function crearTicket(input: {
-  tipo: string
-  prioridad: string
+  tipo: TipoTicket
+  prioridad: PrioridadTicket
   descripcion: string
   email_contacto: string | null
 }) {
@@ -201,4 +254,26 @@ export async function crearTicket(input: {
     .values({ ...input, estado: "pendiente" })
     .returning()
   return ticket
+}
+
+// "Olvidé mi contraseña" del login del panel admin: deja un ticket para que
+// soporte resetee la contraseña desde el panel. Solo si el email es de un
+// usuario activo; si no, no hace nada (la ruta responde igual en ambos casos,
+// así no sirve para averiguar qué emails existen).
+export async function solicitarReseteoAdmin(input: { email: string; mensaje: string | null }): Promise<boolean> {
+  const [usuario] = await db
+    .select({ id: usuarios.id, nombre: usuarios.nombre, email: usuarios.email })
+    .from(usuarios)
+    .where(and(emailIgual(usuarios.email, input.email), eq(usuarios.activo, true)))
+    .limit(1)
+  if (!usuario) return false
+
+  const mensaje = input.mensaje ? `\n\nMensaje: ${input.mensaje}` : ""
+  await crearTicket({
+    tipo: "reseteo_contraseña",
+    prioridad: "alta",
+    descripcion: `Solicitud de reseteo de contraseña para el usuario: ${usuario.nombre} (${usuario.email})${mensaje}`,
+    email_contacto: usuario.email,
+  })
+  return true
 }

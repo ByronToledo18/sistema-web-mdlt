@@ -20,11 +20,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { sanitizeRedirect } from "@/lib/safe-redirect"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = searchParams.get("redirect") || "/admin/dashboard"
+  // Solo rutas internas: un ?redirect=https://... no saca al usuario del sitio.
+  const redirect = sanitizeRedirect(searchParams.get("redirect"))
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -71,15 +73,10 @@ export default function LoginPage() {
     setResetLoading(true)
 
     try {
-      const response = await fetch("/api/soporte/tickets", {
+      const response = await fetch("/api/auth/solicitar-reseteo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: "reseteo_contraseña",
-          prioridad: "alta",
-          descripcion: `Solicitud de reseteo de contraseña para el usuario: ${resetEmail}\n\nMensaje: ${resetMessage}`,
-          email_contacto: resetEmail,
-        }),
+        body: JSON.stringify({ email: resetEmail, mensaje: resetMessage }),
       })
 
       if (!response.ok) {

@@ -7,6 +7,8 @@ const cantidadEntera = z.coerce
   .int("La cantidad debe ser un número entero mayor a 0")
   .positive("La cantidad debe ser un número entero mayor a 0")
 
+export const CANTIDAD_MAXIMA_CATALOGO = 999
+
 export const listarPedidosQuery = z.object({
   estado: z.string().optional(),
   cliente_id: id("Cliente").optional(),
@@ -61,9 +63,10 @@ export const crearPedidoCatalogoBody = z
         z.object({
           id: id("Ítem de pedido"),
           tipo: z.enum(["producto", "servicio"], { error: "Tipo de ítem inválido" }),
-          cantidad: z.coerce
-            .number({ error: "Ítem de pedido inválido" })
-            .refine((n) => Number.isFinite(n) && n > 0, "Ítem de pedido inválido"),
+          // Entera para productos y servicios: el carrito solo suma de a 1 y
+          // `variable` en un servicio es precio variable, no cantidad
+          // fraccionaria. El tope evita totales absurdos por un body a mano.
+          cantidad: cantidadEntera.max(CANTIDAD_MAXIMA_CATALOGO, `La cantidad máxima por ítem es ${CANTIDAD_MAXIMA_CATALOGO}`),
         }),
         { error: "El pedido debe tener al menos un ítem" },
       )
@@ -78,14 +81,6 @@ export const crearPedidoCatalogoBody = z
       ctx.addIssue({ code: "custom", message: "La dirección es requerida para envío a domicilio" })
     } else if (!data.ciudadEnvio) {
       ctx.addIssue({ code: "custom", message: "La ciudad de envío es requerida" })
-    }
-  })
-  .superRefine((data, ctx) => {
-    for (const item of data.items) {
-      if (item.tipo === "producto" && !Number.isInteger(item.cantidad)) {
-        ctx.addIssue({ code: "custom", message: "La cantidad de un producto debe ser un número entero" })
-        return
-      }
     }
   })
 

@@ -55,11 +55,11 @@ Las tres áreas comparten la base de datos y los route handlers de `app/api/`.
 
 ## Seguridad
 
-- **Sesiones:** JWT HS256 firmado con `jose` (`lib/jwt.ts`), en cookies `httpOnly`, `sameSite=lax` y `secure` en producción. Duran 24 h.
+- **Sesiones:** JWT HS256 firmado con `jose` (`lib/jwt.ts`), en cookies `httpOnly`, `sameSite=lax` y `secure` en producción. Duran 24 h en el panel admin y 7 días en el portal (`ADMIN_SESSION_SECONDS` / `PORTAL_SESSION_SECONDS`).
   - Los tokens llevan audiencia (`admin` / `portal`): uno del portal no sirve en el admin ni al revés.
-  - También llevan `tv` (token_version): desactivar un usuario, cambiarle el rol o resetear su contraseña incrementa la versión y revoca sus sesiones abiertas.
+  - También llevan `tv` (token_version): desactivar un usuario, cambiarle el rol o resetear su contraseña incrementa la versión y revoca sus sesiones abiertas. El logout (admin y portal) también la incrementa, así un token copiado deja de valer al cerrar sesión (cierra todas las sesiones de esa cuenta).
   - `JWT_SECRET` es distinto en Production y en Preview/Development.
-- **Contraseñas:** PBKDF2-SHA256 con 100 000 iteraciones y salt aleatorio, vía Web Crypto (`lib/password.ts`).
+- **Contraseñas:** PBKDF2-SHA256 con 600 000 iteraciones y salt aleatorio, vía Web Crypto (`lib/password.ts`), comparadas en tiempo constante. El hash lleva versión (`pbkdf2-sha256$<iteraciones>$<salt>$<hash>`); los antiguos (`salt:hash`, 100 000 iteraciones) siguen verificando y se re-hashean en el siguiente login correcto.
 - **Proxy (`proxy.ts`):** protege `/admin/*` (autenticación y rol). Las rutas `/api/*` quedan fuera, así que **cada route handler valida su propia autenticación** con `withAuth`/`withCliente`. Ambos verifican además `activo` y `tv` contra la base.
 - **Rate limiting** (`lib/rate-limit.ts`; Upstash en producción, memoria en desarrollo): login del admin y del portal, registro, recuperación y reseteo de contraseña, y diseño por IA.
 - **Errores:** los route handlers responden mensajes genéricos (`apiError`). El detalle va a `lib/logger.ts`, que en el servidor lo reenvía a Sentry.

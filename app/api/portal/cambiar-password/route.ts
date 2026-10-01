@@ -1,73 +1,16 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { cookies } from "next/headers"
-import { hashPassword, verifyPassword, getClienteFromToken, generatePortalToken } from "@/lib/auth"
-import { apiError } from "@/lib/http"
-import { logger } from "@/lib/logger"
+import { NextResponse } from "next/server"
+import { generatePortalToken } from "@/lib/jwt"
+import { setPortalSessionCookie } from "@/server/auth/cookies"
+import { withCliente } from "@/server/auth/guard"
+import { cambiarPasswordCliente } from "@/server/services/portal-auth"
+import { cambiarPasswordBody } from "@/server/validators/auth"
+import { parseBody } from "@/server/validators/common"
 
-export async function POST(request: NextRequest) {
-  try {
-    const clienteToken = await getClienteFromToken()
+export const POST = withCliente({ error: "Error al cambiar contraseña" }, async (request, _context, cliente) => {
+  const { currentPassword, newPassword } = await parseBody(request, cambiarPasswordBody)
+  const tokenVersion = await cambiarPasswordCliente(cliente.id, currentPassword, newPassword)
 
-    if (!clienteToken) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 })
-    }
-
-    const { currentPassword, newPassword } = await request.json()
-
-    if (!currentPassword || !newPassword) {
-      return NextResponse.json({ error: "Contraseña actual y nueva son requeridas" }, { status: 400 })
-    }
-
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: "La nueva contraseña debe tener al menos 6 caracteres" }, { status: 400 })
-    }
-
-    // Obtener cliente
-    const result = await sql`
-      SELECT id, hash_password
-      FROM clientes
-      WHERE id = ${clienteToken.id}
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 })
-    }
-
-    const cliente = result[0]
-
-    // Verificar contraseña actual
-    const isValid = await verifyPassword(currentPassword, cliente.hash_password)
-
-    if (!isValid) {
-      return NextResponse.json({ error: "La contraseña actual es incorrecta" }, { status: 401 })
-    }
-
-    // Hash de la nueva contraseña
-    const hashedPassword = await hashPassword(newPassword)
-
-    // Actualizar contraseña e invalidar las demás sesiones abiertas
-    const updated = await sql`
-      UPDATE clientes
-      SET hash_password = ${hashedPassword}, token_version = token_version + 1
-      WHERE id = ${cliente.id}
-      RETURNING token_version
-    `
-
-    // La sesión actual sigue abierta con un token nuevo
-    const token = await generatePortalToken(clienteToken, updated[0].token_version)
-    const cookieStore = await cookies()
-    cookieStore.set("portal-auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 días
-      path: "/",
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    logger.error("api/portal/cambiar-password POST", error)
-    return apiError(error, "Error al cambiar contraseña")
-  }
-}
+  // Las demás sesiones quedan invalidadas; la actual sigue con un token nuevo.
+  await setPortalSessionCookie(await generatePortalToken(cliente, tokenVersion))
+  return NextResponse.json({ success: true })
+})

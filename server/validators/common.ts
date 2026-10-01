@@ -35,6 +35,12 @@ export const positiveMoney = (message: string) =>
 export const nonNegativeMoney = (message: string) =>
   numberInput(message).refine((n) => Number.isFinite(n) && n >= 0, message)
 
+// ?page= de los listados del admin: entero desde 1; cualquier otra cosa es 1.
+const paginaSchema = z.coerce.number().int().min(1).max(100_000).catch(1)
+export function numeroDePagina(valor: string | string[] | undefined): number {
+  return paginaSchema.parse(Array.isArray(valor) ? valor[0] : (valor ?? 1))
+}
+
 // "YYYY-MM-DD"
 export const isoDate = (message: string) => z.string({ error: message }).regex(/^\d{4}-\d{2}-\d{2}/, message)
 

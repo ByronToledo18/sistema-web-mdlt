@@ -1,0 +1,1 @@
+ALTER TABLE "servientrega_detalle" ADD CONSTRAINT "servientrega_detalle_envio_id_key" UNIQUE("envio_id");

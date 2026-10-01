@@ -1,13 +1,13 @@
 import "server-only"
 
-import { and, asc, desc, eq, getTableColumns, ilike, or, sql, sum } from "drizzle-orm"
+import { and, asc, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { anioNegocio, hoyNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
-import { db, withTx } from "@/server/db/client"
+import { db, withTx, type Tx } from "@/server/db/client"
 import {
   clientes,
   PEDIDO_ESTADOS,
-  pagos,
   pedidoFacturas,
   pedidoItems,
   pedidos,
@@ -17,6 +17,7 @@ import {
 import type { AgregarItem, CrearPedidoCatalogo, EditarItem } from "@/server/validators/pedidos"
 import {
   fromCents,
+  paginar,
   pgErrorCode,
   PG_FOREIGN_KEY_VIOLATION,
   PG_UNIQUE_VIOLATION,
@@ -24,7 +25,14 @@ import {
   toCents,
 } from "./_shared"
 import { buscarServicioEnvio, crearEnvioAutomatico, SERVICIO_ENVIO } from "./envios"
-import { assertPedidoEditable, bloquearPedido, generarCodigoPedido, recalcularTotalPedido } from "./pedido-base"
+import {
+  assertNoAnulado,
+  assertPedidoEditable,
+  bloquearPedido,
+  generarCodigoPedido,
+  recalcularTotalPedido,
+  saldoPendienteCents,
+} from "./pedido-base"
 import { ajustarStock, descontarStock, devolverStock } from "./stock"
 import { registrarAuditoria } from "./auditoria"
 
@@ -32,7 +40,9 @@ const IVA_RATE = 0.15 // mismo porcentaje que las facturas de proveedores
 
 // --- Lecturas ---------------------------------------------------------------------
 
-export async function listarPedidos(filtros: { estado?: string; cliente_id?: number; search?: string }) {
+type FiltrosPedidos = { estado?: string; cliente_id?: number; search?: string }
+
+function consultaPedidos(filtros: FiltrosPedidos) {
   return db
     .select({
       ...getTableColumns(pedidos),
@@ -50,7 +60,12 @@ export async function listarPedidos(filtros: { estado?: string; cliente_id?: num
           : undefined,
       ),
     )
-    .orderBy(desc(pedidos.created_at))
+    .orderBy(desc(pedidos.created_at), desc(pedidos.id))
+    .$dynamic()
+}
+
+export function paginaDePedidos(filtros: FiltrosPedidos, pagina: number) {
+  return paginar(consultaPedidos(filtros), pagina)
 }
 
 export async function obtenerPedido(id: number) {
@@ -116,22 +131,51 @@ export async function crearPedido(clienteId: number) {
   })
 }
 
-export async function actualizarEstadoPedido(id: number, estado: (typeof PEDIDO_ESTADOS)[number]) {
+// Productos del pedido con su cantidad (los servicios no mueven stock).
+async function productosDelPedido(tx: Tx, pedidoId: number) {
+  const items = await tx
+    .select({ item_id: pedidoItems.item_id, cantidad: pedidoItems.cantidad })
+    .from(pedidoItems)
+    .where(and(eq(pedidoItems.pedido_id, pedidoId), eq(pedidoItems.item_tipo, "producto")))
+  return items.map((item) => ({ productoId: item.item_id, cantidad: Math.floor(Number(item.cantidad)) }))
+}
+
+// Reglas de cambio de estado:
+// - Un pedido cerrado (terminado, anulado, entregado) solo lo reabre o cambia
+//   el administrador (pedidos_cerrados). Excepción: terminado → entregado.
+// - terminado y entregado exigen saldo cero; al cerrarlo con ciudad de envío
+//   se crea el envío pendiente (una sola vez).
+// - Anular devuelve al inventario el stock de sus productos. Reabrir un
+//   anulado lo vuelve a descontar, validando que alcance (si no, 400 y nada
+//   cambia).
+export async function actualizarEstadoPedido(user: UserPayload, id: number, estado: (typeof PEDIDO_ESTADOS)[number]) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, id)
+    if (pedido.estado === estado) return pedido
+    // Entregar un pedido terminado es el paso normal del flujo, no reabrirlo.
+    if (!(pedido.estado === "terminado" && estado === "entregado")) {
+      assertPedidoEditable(
+        user,
+        pedido.estado,
+        "Solo un administrador puede cambiar el estado de un pedido terminado, anulado o entregado",
+      )
+    }
 
-    if (estado === "terminado") {
-      const [{ pagado }] = await tx
-        .select({ pagado: sum(pagos.monto) })
-        .from(pagos)
-        .where(eq(pagos.pedido_id, id))
-      const saldo = toCents(pedido.total) - toCents(pagado)
+    if (estado === "terminado" || estado === "entregado") {
+      const saldo = await saldoPendienteCents(tx, pedido)
       if (saldo > 0) {
-        throw new HttpError(400, `No se puede completar el pedido con saldo pendiente de $${fromCents(saldo)}`)
+        const accion = estado === "terminado" ? "completar" : "entregar"
+        throw new HttpError(400, `No se puede ${accion} el pedido con saldo pendiente de $${fromCents(saldo)}`)
       }
       if (pedido.ciudad_envio) {
         await crearEnvioAutomatico(tx, id)
       }
+    }
+
+    if (estado === "anulado") {
+      for (const p of await productosDelPedido(tx, id)) await devolverStock(tx, p.productoId, p.cantidad)
+    } else if (pedido.estado === "anulado") {
+      for (const p of await productosDelPedido(tx, id)) await descontarStock(tx, p.productoId, p.cantidad)
     }
 
     const [actualizado] = await tx
@@ -143,18 +187,15 @@ export async function actualizarEstadoPedido(id: number, estado: (typeof PEDIDO_
   })
 }
 
-// Elimina el pedido y devuelve al inventario el stock de sus productos.
+// Elimina el pedido y devuelve al inventario el stock de sus productos (salvo
+// que esté anulado: ese stock ya se devolvió al anularlo).
 // Si ya tiene cobros, envíos o factura, la FK lo impide y no se toca nada.
 export async function eliminarPedido(id: number): Promise<void> {
   try {
     await withTx(async (tx) => {
-      await bloquearPedido(tx, id)
-      const items = await tx
-        .select({ item_id: pedidoItems.item_id, cantidad: pedidoItems.cantidad })
-        .from(pedidoItems)
-        .where(and(eq(pedidoItems.pedido_id, id), eq(pedidoItems.item_tipo, "producto")))
-      for (const item of items) {
-        await devolverStock(tx, item.item_id, Math.floor(Number(item.cantidad)))
+      const pedido = await bloquearPedido(tx, id)
+      if (pedido.estado !== "anulado") {
+        for (const p of await productosDelPedido(tx, id)) await devolverStock(tx, p.productoId, p.cantidad)
       }
       // pedido_items se borra en cascada.
       await tx.delete(pedidos).where(eq(pedidos.id, id))
@@ -172,7 +213,8 @@ export async function eliminarPedido(id: number): Promise<void> {
 export async function agregarItem(user: UserPayload, pedidoId: number, input: AgregarItem) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, pedidoId)
-    assertPedidoEditable(user, pedido.estado, "No se pueden agregar items a un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden agregar items a un pedido terminado, anulado o entregado")
+    assertNoAnulado(pedido.estado)
 
     if (input.item_tipo === "producto") {
       await descontarStock(tx, input.item_id, input.cantidad)
@@ -203,7 +245,8 @@ export async function agregarItem(user: UserPayload, pedidoId: number, input: Ag
 export async function editarItem(user: UserPayload, pedidoId: number, itemId: number, input: EditarItem) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, pedidoId)
-    assertPedidoEditable(user, pedido.estado, "No se pueden modificar items de un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden modificar items de un pedido terminado, anulado o entregado")
+    assertNoAnulado(pedido.estado)
 
     const [actual] = await tx
       .select()
@@ -239,7 +282,8 @@ export async function editarItem(user: UserPayload, pedidoId: number, itemId: nu
 export async function eliminarItem(user: UserPayload, pedidoId: number, itemId: number): Promise<void> {
   await withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, pedidoId)
-    assertPedidoEditable(user, pedido.estado, "No se pueden eliminar items de un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden eliminar items de un pedido terminado, anulado o entregado")
+    assertNoAnulado(pedido.estado)
 
     // El DELETE … RETURNING decide qué stock devolver: si dos peticiones
     // borran el mismo ítem, solo la primera lo encuentra.
@@ -394,7 +438,7 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
       const subtotal = items.reduce((acc, item) => acc + toCents(item.subtotal), 0)
       const iva = Math.round(subtotal * IVA_RATE)
 
-      const year = new Date().getFullYear()
+      const year = anioNegocio()
       const numeroFactura = await siguienteCodigo(tx, {
         prefix: `FACT-${year}-`,
         seqName: `factura_numero_seq_${year}`,
@@ -406,6 +450,8 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
         .values({
           pedido_id: pedidoId,
           numero_factura: numeroFactura,
+          // El default CURRENT_DATE de la columna es el día de UTC.
+          fecha_emision: hoyNegocio(),
           subtotal: fromCents(subtotal),
           iva: fromCents(iva),
           total: fromCents(subtotal + iva),

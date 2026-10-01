@@ -151,13 +151,13 @@ describe("estado y factura", () => {
     await agregarItem(asistente, pedido.id, itemProducto(producto.id, 1, 30))
     await db.insert(pagos).values({ pedido_id: pedido.id, monto: "10.00" })
 
-    await expect(actualizarEstadoPedido(pedido.id, "terminado")).rejects.toMatchObject({
+    await expect(actualizarEstadoPedido(asistente, pedido.id, "terminado")).rejects.toMatchObject({
       status: 400,
       message: expect.stringContaining("20.00"),
     })
 
     await db.insert(pagos).values({ pedido_id: pedido.id, monto: "20.00" })
-    await expect(actualizarEstadoPedido(pedido.id, "terminado")).resolves.toMatchObject({ estado: "terminado" })
+    await expect(actualizarEstadoPedido(asistente, pedido.id, "terminado")).resolves.toMatchObject({ estado: "terminado" })
   })
 
   test("la factura suma 15 % de IVA y no se genera dos veces", async () => {

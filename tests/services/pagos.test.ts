@@ -139,3 +139,33 @@ describe("pagosPorRango", () => {
     expect(resumen).toMatchObject({ total_pagos: 30, cantidad_pagos: 3 })
   })
 })
+
+describe("consolidacionMensual", () => {
+  test("dos pedidos con el mismo total se suman los dos", async () => {
+    const a = await pedidoPorCobrar(50)
+    const b = await pedidoPorCobrar(50)
+    const enSeptiembre = new Date("2026-09-15T15:00:00Z")
+    await db.insert(pagos).values([
+      { pedido_id: a.id, monto: "20.00", fecha: enSeptiembre },
+      { pedido_id: a.id, monto: "10.00", fecha: enSeptiembre },
+      { pedido_id: b.id, monto: "50.00", fecha: enSeptiembre },
+    ])
+
+    expect(await consolidacionMensual(2026, 9)).toEqual({
+      total_pagos: 80,
+      cantidad_pagos: 3,
+      total_pedidos: 100,
+      cantidad_pedidos: 2,
+    })
+  })
+
+  test("sin cobros en el mes: todo en cero", async () => {
+    await pedidoPorCobrar(50)
+    expect(await consolidacionMensual(2026, 9)).toEqual({
+      total_pagos: 0,
+      cantidad_pagos: 0,
+      total_pedidos: 0,
+      cantidad_pedidos: 0,
+    })
+  })
+})

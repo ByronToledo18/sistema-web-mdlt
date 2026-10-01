@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
-import { sql } from "@/lib/db"
 import { getClienteFromToken } from "@/lib/auth"
 import { generarImagenDiseno } from "@/lib/gemini"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { apiError } from "@/lib/http"
 import { logger } from "@/lib/logger"
+import { contarDisenosDeHoy, listarDisenosDeCliente, registrarDiseno } from "@/server/services/disenos"
 
 const MAX_DISENOS_POR_DIA = 5
 
@@ -42,11 +42,7 @@ export async function POST(request: NextRequest) {
     // Límite diario por cliente - cada generación cuesta dinero real en la
     // API de Gemini, esto evita que una cuenta comprometida o un loop de
     // errores en el frontend genere un gasto descontrolado.
-    const hoy = await sql`
-      SELECT COUNT(*) as count FROM disenos_personalizados
-      WHERE cliente_id = ${cliente.id} AND created_at >= CURRENT_DATE
-    `
-    if (Number.parseInt(hoy[0].count) >= MAX_DISENOS_POR_DIA) {
+    if ((await contarDisenosDeHoy(cliente.id)) >= MAX_DISENOS_POR_DIA) {
       return NextResponse.json(
         { error: `Alcanzaste el límite de ${MAX_DISENOS_POR_DIA} diseños por día. Intenta de nuevo mañana.` },
         { status: 429 },
@@ -61,13 +57,9 @@ export async function POST(request: NextRequest) {
       contentType: "image/jpeg",
     })
 
-    const result = await sql`
-      INSERT INTO disenos_personalizados (cliente_id, descripcion, imagen_url, estado)
-      VALUES (${cliente.id}, ${descripcion.trim()}, ${blob.url}, 'generado')
-      RETURNING *
-    `
+    const diseno = await registrarDiseno(cliente.id, descripcion.trim(), blob.url)
 
-    return NextResponse.json({ diseno: result[0] }, { status: 201 })
+    return NextResponse.json({ diseno }, { status: 201 })
   } catch (error) {
     logger.error("api/catalogo/disenar POST", error)
     return apiError(error, "Error al generar el diseño")
@@ -82,11 +74,7 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    const disenos = await sql`
-      SELECT * FROM disenos_personalizados
-      WHERE cliente_id = ${cliente.id}
-      ORDER BY created_at DESC
-    `
+    const disenos = await listarDisenosDeCliente(cliente.id)
 
     return NextResponse.json({ disenos })
   } catch (error) {

@@ -1,11 +1,12 @@
 import "server-only"
 
-import { and, count, countDistinct, desc, eq, getTableColumns, gte, lt, sql, sum } from "drizzle-orm"
+import { and, count, desc, eq, getTableColumns, gte, inArray, lt, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { rangoDeDias } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { db, withTx } from "@/server/db/client"
 import { clientes, pagos, pedidos } from "@/server/db/schema"
-import { fromCents, toCents } from "./_shared"
+import { fromCents, paginar, toCents } from "./_shared"
 import { crearEnvioAutomatico } from "./envios"
 import { assertPedidoEditable, bloquearPedido } from "./pedido-base"
 
@@ -51,7 +52,7 @@ export interface RegistrarPago {
 export async function registrarPago(user: UserPayload, input: RegistrarPago) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, input.pedido_id)
-    assertPedidoEditable(user, pedido.estado, "No se pueden registrar pagos en un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden registrar pagos en un pedido terminado, anulado o entregado")
 
     const [{ pagado }] = await tx
       .select({ pagado: sum(pagos.monto) })
@@ -92,13 +93,10 @@ export async function eliminarPago(id: number): Promise<void> {
 
 // --- Reportes de cobros ---------------------------------------------------------------
 
-// pagos.fecha es un instante (UTC). Un rango de días del calendario de Ecuador
-// (UTC-5, sin horario de verano) va desde las 00:00 del primer día hasta antes
-// de las 00:00 del día siguiente al último: así el último día entra completo.
-// Antes se hacía new Date("YYYY-MM-DD"), que es medianoche UTC, y se perdía.
+// pagos.fecha es un instante (UTC). El rango de días del calendario de Ecuador
+// (ambos incluidos) lo calcula lib/fechas.ts.
 function rangoDias(desde: string, hasta: string) {
-  const inicio = new Date(`${desde.slice(0, 10)}T00:00:00-05:00`)
-  const fin = new Date(new Date(`${hasta.slice(0, 10)}T00:00:00-05:00`).getTime() + 24 * 60 * 60 * 1000)
+  const { inicio, fin } = rangoDeDias(desde, hasta)
   return and(gte(pagos.fecha, inicio), lt(pagos.fecha, fin))
 }
 
@@ -109,29 +107,33 @@ export function mesEnDias(year: number, month: number): [string, string] {
   return [`${year}-${mm}-01`, `${year}-${mm}-${ultimo}`]
 }
 
+// Cobros del mes y total de los pedidos que recibieron al menos un cobro en el
+// mes. Cada pedido se suma una sola vez, por id (antes era SUM(DISTINCT total),
+// que juntaba pedidos distintos con el mismo total).
 export async function consolidacionMensual(year: number, month: number) {
+  const rango = rangoDias(...mesEnDias(year, month))
 
-  const [resultado] = await db
-    .select({
-      total_pagos: sum(pagos.monto),
-      cantidad_pagos: count(pagos.id),
-      total_pedidos: sql<string | null>`SUM(DISTINCT ${pedidos.total})`,
-      cantidad_pedidos: countDistinct(pedidos.id),
-    })
+  const [cobros] = await db
+    .select({ total_pagos: sum(pagos.monto), cantidad_pagos: count(pagos.id) })
     .from(pagos)
-    .innerJoin(pedidos, eq(pagos.pedido_id, pedidos.id))
-    .where(rangoDias(...mesEnDias(year, month)))
+    .where(rango)
+
+  const pedidosConCobro = db.selectDistinct({ id: pagos.pedido_id }).from(pagos).where(rango)
+  const [delMes] = await db
+    .select({ total_pedidos: sum(pedidos.total), cantidad_pedidos: count(pedidos.id) })
+    .from(pedidos)
+    .where(inArray(pedidos.id, pedidosConCobro))
 
   return {
-    total_pagos: Number.parseFloat(resultado?.total_pagos ?? "0"),
-    cantidad_pagos: resultado?.cantidad_pagos ?? 0,
-    total_pedidos: Number.parseFloat(resultado?.total_pedidos ?? "0"),
-    cantidad_pedidos: resultado?.cantidad_pedidos ?? 0,
+    total_pagos: Number.parseFloat(cobros?.total_pagos ?? "0"),
+    cantidad_pagos: cobros?.cantidad_pagos ?? 0,
+    total_pedidos: Number.parseFloat(delMes?.total_pedidos ?? "0"),
+    cantidad_pedidos: delMes?.cantidad_pedidos ?? 0,
   }
 }
 
 // Cobros entre dos días del calendario de Ecuador ("YYYY-MM-DD"), ambos incluidos.
-export async function pagosPorRango(desde: string, hasta: string) {
+function consultaPagosPorRango(desde: string, hasta: string) {
   return db
     .select({
       id: pagos.id,
@@ -147,5 +149,15 @@ export async function pagosPorRango(desde: string, hasta: string) {
     .innerJoin(pedidos, eq(pagos.pedido_id, pedidos.id))
     .innerJoin(clientes, eq(pedidos.cliente_id, clientes.id))
     .where(rangoDias(desde, hasta))
-    .orderBy(desc(pagos.fecha))
+    .orderBy(desc(pagos.fecha), desc(pagos.id))
+    .$dynamic()
+}
+
+// Todos los cobros del rango (reportes).
+export async function pagosPorRango(desde: string, hasta: string) {
+  return consultaPagosPorRango(desde, hasta)
+}
+
+export function paginaDePagosPorRango(desde: string, hasta: string, pagina: number) {
+  return paginar(consultaPagosPorRango(desde, hasta), pagina)
 }
