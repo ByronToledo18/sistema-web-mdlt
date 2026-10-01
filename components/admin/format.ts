@@ -10,12 +10,12 @@ export function formatCurrency(value: string | number | null | undefined): strin
 // Vercel) y se hidratan en el navegador, y ambos deben dar el mismo texto.
 export const TIME_ZONE = "America/Guayaquil"
 
-export function formatDateTime(value: string | Date | null | undefined): string {
+export function formatDateTime(value: string | Date | null | undefined, month: "long" | "short" = "long"): string {
   if (!value) return ""
   return new Date(value).toLocaleString("es-EC", {
     timeZone: TIME_ZONE,
     year: "numeric",
-    month: "long",
+    month,
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
