@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { generateToken } from "@/lib/jwt"
-import { getClientIp, rateLimit, rateLimitCuenta, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { getClientIp, rateLimit, conLimiteFallos, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { setAdminSessionCookie } from "@/server/auth/cookies"
 import { withErrors } from "@/server/auth/guard"
 import { iniciarSesionAdmin } from "@/server/services/auth"
@@ -14,15 +14,23 @@ export const POST = withErrors({ error: "Error en el servidor" }, async (request
   }
 
   const input = await parseBody(request, loginBody)
-  // Además del límite por IP, uno por cuenta (email ya normalizado).
-  const porCuenta = await rateLimitCuenta(RATE_LIMITS.adminLoginCuenta, input.email)
-  if (!porCuenta.success) {
-    return rateLimitResponse(porCuenta.retryAfter)
+  // Además del límite por IP, uno de FALLOS por cuenta (email ya
+  // normalizado): solo cuentan los logins fallidos y uno correcto lo resetea,
+  // así nadie puede bloquear al dueño con POST al azar.
+  const intento = await conLimiteFallos(
+    RATE_LIMITS.adminLoginCuenta,
+    input.email,
+    () =>
+      iniciarSesionAdmin(input, {
+        ip: getClientIp(request),
+        userAgent: request.headers.get("user-agent") ?? undefined,
+      }),
+    { fallo: (r) => !r.ok },
+  )
+  if (intento.bloqueado) {
+    return rateLimitResponse(intento.retryAfter)
   }
-  const resultado = await iniciarSesionAdmin(input, {
-    ip: getClientIp(request),
-    userAgent: request.headers.get("user-agent") ?? undefined,
-  })
+  const resultado = intento.resultado
   if (!resultado.ok) {
     return NextResponse.json({ error: resultado.error }, { status: resultado.status })
   }
@@ -32,7 +40,12 @@ export const POST = withErrors({ error: "Error en el servidor" }, async (request
 
   return NextResponse.json({
     success: true,
-    user: { id: user.id, email: user.email, nombre: user.nombre, rol: user.rol },
+    user: {
+      id: user.id,
+      email: user.email,
+      nombre: user.nombre,
+      rol: user.rol,
+    },
     // Si es true, la única página disponible es /cambiar-password.
     debe_cambiar_password: !!user.debe_cambiar_password,
   })

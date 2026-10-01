@@ -107,19 +107,19 @@ describe("rutas de login y logout del admin", () => {
     expect(statuses[10]).toBe(429)
   })
 
-  test("rate limit por cuenta: 429 tras 10 intentos al mismo email desde IPs distintas", async () => {
+  test("límite por cuenta: 429 tras 20 FALLOS al mismo email desde IPs distintas", { timeout: 60_000 }, async () => {
     // Cuenta propia del test: el contador en memoria se comparte en el archivo.
     const admin = await crearAdmin()
     await db.update(usuarios).set({ email: "bea@test.local" }).where(eq(usuarios.id, admin.id))
     const statuses: number[] = []
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 21; i++) {
       // Cambia la capitalización: cuenta el email normalizado.
       const email = i % 2 ? "BEA@test.local" : "bea@test.local"
       const res = await loginAdmin(post("/api/auth/login", { email, password: "mala" }), ctx)
       statuses.push(res.status)
     }
-    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
-    expect(statuses[10]).toBe(429)
+    expect(statuses.slice(0, 20).every((s) => s === 401)).toBe(true)
+    expect(statuses[20]).toBe(429)
     // Incluso con la contraseña correcta, hasta que pase la ventana.
     const correcta = await loginAdmin(post("/api/auth/login", { email: "bea@test.local", password: "clave-correcta" }), ctx)
     expect(correcta.status).toBe(429)
@@ -127,17 +127,43 @@ describe("rutas de login y logout del admin", () => {
     const otra = await loginAdmin(post("/api/auth/login", { email: "otra@test.local", password: "x" }), ctx)
     expect(otra.status).toBe(401)
   })
+
+  test("límite por cuenta: los logins correctos no cuentan y resetean los fallos", { timeout: 90_000 }, async () => {
+    const admin = await crearAdmin()
+    await db.update(usuarios).set({ email: "dueno@test.local" }).where(eq(usuarios.id, admin.id))
+    const login = (password: string) =>
+      loginAdmin(post("/api/auth/login", { email: "dueno@test.local", password }), ctx).then((r) => r.status)
+
+    // 25 logins correctos seguidos: ninguno bloquea.
+    for (let i = 0; i < 25; i++) expect(await login("clave-correcta")).toBe(200)
+
+    // 19 fallos, un login correcto (resetea) y otros 19 fallos: sigue sin bloquear.
+    for (let i = 0; i < 19; i++) expect(await login("mala")).toBe(401)
+    expect(await login("clave-correcta")).toBe(200)
+    for (let i = 0; i < 19; i++) expect(await login("mala")).toBe(401)
+    expect(await login("clave-correcta")).toBe(200)
+  })
 })
 
 describe("rutas de login y logout del portal", () => {
-  test("rate limit por cuenta en el portal: 429 tras 10 intentos al mismo email", async () => {
+  test("límite por cuenta en el portal: 429 tras 20 fallos al mismo email", { timeout: 60_000 }, async () => {
     const statuses: number[] = []
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 21; i++) {
       const res = await loginPortal(post("/api/portal/login", { email: "spray@test.local", password: "x" }), ctx)
       statuses.push(res.status)
     }
-    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
-    expect(statuses[10]).toBe(429)
+    expect(statuses.slice(0, 20).every((s) => s === 401)).toBe(true)
+    expect(statuses[20]).toBe(429)
+  })
+
+  test("límite por cuenta en el portal: un login correcto resetea los fallos", { timeout: 60_000 }, async () => {
+    await crearCliente({ email: "reset@test.local", hash_password: await hashPassword("secreta") })
+    const login = (password: string) =>
+      loginPortal(post("/api/portal/login", { email: "reset@test.local", password }), ctx).then((r) => r.status)
+    for (let i = 0; i < 19; i++) expect(await login("x")).toBe(401)
+    expect(await login("secreta")).toBe(200)
+    for (let i = 0; i < 19; i++) expect(await login("x")).toBe(401)
+    expect(await login("secreta")).toBe(200)
   })
 
   test("login y logout revocan el token del portal", async () => {
