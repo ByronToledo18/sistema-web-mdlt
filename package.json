@@ -9,7 +9,12 @@
     "start": "next start",
     "db:generate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
-    "db:baseline": "node --env-file=.env.local scripts/drizzle-baseline.mjs"
+    "db:baseline": "node --env-file=.env.local scripts/drizzle-baseline.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:seed-test": "node --env-file=.env.test.local --experimental-strip-types scripts/seed-test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",
@@ -44,6 +49,8 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
@@ -54,6 +61,7 @@
     "eslint-config-next": "15.1.6",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.2"
   }
 }
