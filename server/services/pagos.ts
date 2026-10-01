@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, count, countDistinct, desc, eq, getTableColumns, gte, lt, sql, sum } from "drizzle-orm"
+import { and, count, desc, eq, getTableColumns, gte, inArray, lt, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
 import { HttpError } from "@/lib/http"
 import { db, withTx } from "@/server/db/client"
@@ -109,24 +109,28 @@ export function mesEnDias(year: number, month: number): [string, string] {
   return [`${year}-${mm}-01`, `${year}-${mm}-${ultimo}`]
 }
 
+// Cobros del mes y total de los pedidos que recibieron al menos un cobro en el
+// mes. Cada pedido se suma una sola vez, por id (antes era SUM(DISTINCT total),
+// que juntaba pedidos distintos con el mismo total).
 export async function consolidacionMensual(year: number, month: number) {
+  const rango = rangoDias(...mesEnDias(year, month))
 
-  const [resultado] = await db
-    .select({
-      total_pagos: sum(pagos.monto),
-      cantidad_pagos: count(pagos.id),
-      total_pedidos: sql<string | null>`SUM(DISTINCT ${pedidos.total})`,
-      cantidad_pedidos: countDistinct(pedidos.id),
-    })
+  const [cobros] = await db
+    .select({ total_pagos: sum(pagos.monto), cantidad_pagos: count(pagos.id) })
     .from(pagos)
-    .innerJoin(pedidos, eq(pagos.pedido_id, pedidos.id))
-    .where(rangoDias(...mesEnDias(year, month)))
+    .where(rango)
+
+  const pedidosConCobro = db.selectDistinct({ id: pagos.pedido_id }).from(pagos).where(rango)
+  const [delMes] = await db
+    .select({ total_pedidos: sum(pedidos.total), cantidad_pedidos: count(pedidos.id) })
+    .from(pedidos)
+    .where(inArray(pedidos.id, pedidosConCobro))
 
   return {
-    total_pagos: Number.parseFloat(resultado?.total_pagos ?? "0"),
-    cantidad_pagos: resultado?.cantidad_pagos ?? 0,
-    total_pedidos: Number.parseFloat(resultado?.total_pedidos ?? "0"),
-    cantidad_pedidos: resultado?.cantidad_pedidos ?? 0,
+    total_pagos: Number.parseFloat(cobros?.total_pagos ?? "0"),
+    cantidad_pagos: cobros?.cantidad_pagos ?? 0,
+    total_pedidos: Number.parseFloat(delMes?.total_pedidos ?? "0"),
+    cantidad_pedidos: delMes?.cantidad_pedidos ?? 0,
   }
 }
 
