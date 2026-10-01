@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { generatePortalToken } from "@/lib/jwt"
-import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { rateLimit, rateLimitCuenta, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { setPortalSessionCookie } from "@/server/auth/cookies"
 import { withErrors } from "@/server/auth/guard"
 import { iniciarSesionCliente } from "@/server/services/portal-auth"
@@ -13,7 +13,14 @@ export const POST = withErrors({ error: "Error al iniciar sesión" }, async (req
     return rateLimitResponse(limit.retryAfter)
   }
 
-  const resultado = await iniciarSesionCliente(await parseBody(request, loginBody))
+  const input = await parseBody(request, loginBody)
+  // Además del límite por IP, uno por cuenta (email ya normalizado).
+  const porCuenta = await rateLimitCuenta(RATE_LIMITS.portalLoginCuenta, input.email)
+  if (!porCuenta.success) {
+    return rateLimitResponse(porCuenta.retryAfter)
+  }
+
+  const resultado = await iniciarSesionCliente(input)
   if (!resultado.ok) {
     return NextResponse.json({ error: resultado.error }, { status: resultado.status })
   }

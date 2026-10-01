@@ -3,9 +3,10 @@ import "server-only"
 import type { NextRequest } from "next/server"
 import { ZodError } from "zod"
 import { getClienteFromToken, getCurrentUser, type ClientePayload, type UserPayload } from "@/lib/auth"
-import { apiError, HttpError } from "@/lib/http"
+import { apiError, DEBE_CAMBIAR_PASSWORD, HttpError } from "@/lib/http"
 import { hasPermission, type Action, type Module } from "@/lib/permissions"
 import { logger } from "@/lib/logger"
+
 
 export type RouteContext<P> = { params: Promise<P> }
 
@@ -53,6 +54,10 @@ export function withAuth<P = Record<string, never>>(
       const user = await getCurrentUser()
       if (!user) {
         throw new HttpError(401, "No autenticado")
+      }
+      // Con una contraseña asignada por otra persona, nada salvo cambiarla.
+      if (user.debe_cambiar_password) {
+        throw new HttpError(403, DEBE_CAMBIAR_PASSWORD)
       }
       if (options.permission) {
         assertCan(user, options.permission.module, options.permission.action)

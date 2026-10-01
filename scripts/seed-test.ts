@@ -62,7 +62,8 @@ const E2E = {
   admin: { email: "e2e-admin@test.local", nombre: "Admin E2E", rol: "administrador" },
   soporte: { email: "e2e-soporte@test.local", nombre: "Soporte E2E", rol: "soporte" },
   cliente: { email: "e2e-cliente@test.local", nombre: "Cliente E2E", cedula: "0000000001", telefono: "0990000001" },
-  producto: { sku: "E2E-TUTU", nombre: "Tutu E2E", precio: "25.00", stock: 100_000 },
+  // Precio sin IVA; graba IVA (el e2e del admin cobra 2 × 25,00 + 15 % = 57,50).
+  producto: { sku: "E2E-TUTU", nombre: "Tutu E2E", precio: "25.00", stock: 100_000, graba_iva: true },
   ciudad: { ciudad: "Ciudad E2E", costo: "4.00" },
 }
 
@@ -79,6 +80,8 @@ async function usuario(datos: { email: string; nombre: string; rol: string }, pa
     rol_id: await rolId(datos.rol),
     hash_password: await hashPassword(pass),
     activo: true,
+    // Los usuarios del e2e entran directo al panel (sin /cambiar-password).
+    debe_cambiar_password: false,
   }
   await db
     .insert(usuarios)

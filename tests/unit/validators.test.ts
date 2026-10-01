@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { agregarItemBody, crearPedidoCatalogoBody } from "@/server/validators/pedidos"
+import { productoBody, servicioBody } from "@/server/validators/catalogo"
 
 const cliente = { nombre: "Ana", cedula: "0912345678", telefono: "0991234567", direccion: "Calle 1" }
 
@@ -57,5 +58,14 @@ describe("agregarItemBody", () => {
     expect(primerError(agregarItemBody, { item_tipo: "producto", item_id: 3, cantidad: 1, precio_unitario: -1 })).toBe(
       "El precio no puede ser negativo",
     )
+  })
+})
+
+describe("graba_iva en productos y servicios", () => {
+  test("por defecto grava IVA; false lo desactiva", () => {
+    expect(productoBody.parse({ nombre: "Tutu", precio: 10 }).graba_iva).toBe(true)
+    expect(productoBody.parse({ nombre: "Tutu", precio: 10, graba_iva: false }).graba_iva).toBe(false)
+    expect(servicioBody.parse({ nombre: "Envío", precio_base: 5 }).graba_iva).toBe(true)
+    expect(servicioBody.parse({ nombre: "Envío", precio_base: 5, graba_iva: false }).graba_iva).toBe(false)
   })
 })

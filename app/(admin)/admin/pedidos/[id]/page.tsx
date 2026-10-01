@@ -51,6 +51,8 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   const estado = pedido.estado ?? "recibido"
   const isOrderClosed = estado === "terminado" || estado === "anulado" || estado === "entregado"
   const canEditClosed = can(user, "pedidos_cerrados", "update")
+  // Estado y cobros: el administrador también en pedidos cerrados. Ítems y
+  // eliminación de cobros: nadie, hasta reabrir el pedido.
   const canModifyOrder = canEditClosed || !isOrderClosed
 
   return (
@@ -68,11 +70,13 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           <PedidoFacturaButton pedidoId={pedido.id} factura={factura} />
         </div>
 
-        {isOrderClosed && !canEditClosed && (
+        {isOrderClosed && (
           <Alert>
             <AlertDescription>
-              Este pedido está <strong>{estado}</strong> y no permite modificaciones. Solo los administradores pueden
-              realizar cambios en pedidos cerrados.
+              Este pedido está <strong>{estado}</strong>: sus ítems y cobros no se pueden modificar.
+              {canEditClosed
+                ? " Para corregirlo, primero reábrelo cambiando su estado."
+                : " Solo un administrador puede reabrirlo."}
             </AlertDescription>
           </Alert>
         )}
@@ -136,7 +140,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
               <div className="pt-4 border-t space-y-2">
                 <div className="flex justify-between items-center">
-                  <p className="text-sm font-medium">Total del Pedido</p>
+                  <p className="text-sm font-medium">Total del Pedido (con IVA)</p>
                   <p className="text-2xl font-bold">{formatCurrency(pedido.total)}</p>
                 </div>
                 <div className="flex justify-between items-center">
@@ -169,7 +173,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           productos={productos.map((p) => ({ id: p.id, nombre: p.nombre, precio: p.precio, stock: p.stock }))}
           servicios={servicios.map((s) => ({ id: s.id, nombre: s.nombre, precio_base: s.precio_base }))}
           isOrderClosed={isOrderClosed}
-          canModifyOrder={canModifyOrder}
+          canModifyOrder={!isOrderClosed}
         />
 
         <PedidoPagosCard
@@ -177,7 +181,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           pagos={pagos}
           saldoPendiente={saldoPendiente}
           canModifyOrder={canModifyOrder}
-          canDeletePago={can(user, "pagos", "delete")}
+          canDeletePago={can(user, "pagos", "delete") && !isOrderClosed}
         />
 
         <PedidoEnviosCard envios={envios} canDeleteEnvio={can(user, "envios", "delete")} />

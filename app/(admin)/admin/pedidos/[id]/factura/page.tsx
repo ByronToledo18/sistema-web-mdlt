@@ -3,6 +3,8 @@ import { BackButton } from "@/components/ui/back-button"
 import { formatCurrency, formatDate } from "@/components/admin/format"
 import { PrintButton } from "@/components/admin/print-button"
 import { HttpError } from "@/lib/http"
+import { IVA_PORCENTAJE } from "@/lib/iva"
+import { fromCents, toCents } from "@/server/services/_shared"
 import { requirePermission } from "@/server/auth/session"
 import { obtenerFactura, obtenerPedido } from "@/server/services/pedidos"
 import { idParams } from "@/server/validators/common"
@@ -28,6 +30,9 @@ export default async function FacturaPage({ params }: { params: Promise<{ id: st
       </div>
     )
   }
+
+  // subtotal = base total; subtotal_0 = ítems que no gravan IVA.
+  const subtotalGravado = fromCents(toCents(factura.subtotal) - toCents(factura.subtotal_0))
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -62,6 +67,7 @@ export default async function FacturaPage({ params }: { params: Promise<{ id: st
                 <th className="py-2">Descripción</th>
                 <th className="py-2 text-right">Cant.</th>
                 <th className="py-2 text-right">P. Unitario</th>
+                <th className="py-2 text-right">IVA</th>
                 <th className="py-2 text-right">Subtotal</th>
               </tr>
             </thead>
@@ -71,6 +77,7 @@ export default async function FacturaPage({ params }: { params: Promise<{ id: st
                   <td className="py-2">{item.descripcion}</td>
                   <td className="py-2 text-right">{item.cantidad}</td>
                   <td className="py-2 text-right">{formatCurrency(item.precio_unitario)}</td>
+                  <td className="py-2 text-right">{item.graba_iva ? `${IVA_PORCENTAJE} %` : "0 %"}</td>
                   <td className="py-2 text-right">{formatCurrency(item.subtotal)}</td>
                 </tr>
               ))}
@@ -80,11 +87,15 @@ export default async function FacturaPage({ params }: { params: Promise<{ id: st
           <div className="flex justify-end">
             <div className="w-56 space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal</span>
-                <span>{formatCurrency(factura.subtotal)}</span>
+                <span className="text-gray-600">Subtotal {IVA_PORCENTAJE} %</span>
+                <span>{formatCurrency(subtotalGravado)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">IVA (15%)</span>
+                <span className="text-gray-600">Subtotal 0 %</span>
+                <span>{formatCurrency(factura.subtotal_0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">IVA {IVA_PORCENTAJE} %</span>
                 <span>{formatCurrency(factura.iva)}</span>
               </div>
               <div className="flex justify-between font-bold text-base border-t pt-1">

@@ -39,6 +39,7 @@ export async function getCurrentUser(): Promise<UserPayload | null> {
       token_version: usuarios.token_version,
       rol_id: usuarios.rol_id,
       rol: roles.nombre,
+      debe_cambiar_password: usuarios.debe_cambiar_password,
     })
     .from(usuarios)
     .innerJoin(roles, eq(usuarios.rol_id, roles.id))
@@ -48,7 +49,7 @@ export async function getCurrentUser(): Promise<UserPayload | null> {
     return null
   }
 
-  return { ...decoded.user, rol: row.rol, rol_id: row.rol_id }
+  return { ...decoded.user, rol: row.rol, rol_id: row.rol_id, debe_cambiar_password: row.debe_cambiar_password }
 }
 
 // Cliente del portal (cookie portal-auth-token).

@@ -14,16 +14,11 @@ import { cambiarRolBody, crearUsuarioBody, resetPasswordBody } from "@/server/va
 
 const usuarioId = id("Usuario")
 
-// Cada cambio de usuarios queda en la auditoría.
+// Cada cambio de usuarios queda en la auditoría (crear, cambio de rol y
+// reseteo la registran los servicios, con el rol asignado).
 export async function crearUsuarioAction(input: unknown) {
   return adminAction({ permission: { module: "usuarios", action: "create" }, error: "Error al crear usuario" }, async (user) => {
-    const usuario = await crearUsuario(crearUsuarioBody.parse(input))
-    await registrarAuditoria({
-      usuario_id: user.id,
-      accion: "CREAR",
-      modulo: "usuarios",
-      descripcion: `Creó el usuario ${usuario.nombre} (${usuario.email})`,
-    })
+    await crearUsuario(user, crearUsuarioBody.parse(input))
     revalidatePath("/admin/soporte")
   })
 }
@@ -31,13 +26,7 @@ export async function crearUsuarioAction(input: unknown) {
 export async function cambiarRolUsuarioAction(rawId: number, input: unknown) {
   return adminAction({ permission: { module: "usuarios", action: "update" }, error: "Error al cambiar rol" }, async (user) => {
     const { rol_id } = cambiarRolBody.parse(input)
-    const usuario = await cambiarRolUsuario(user, usuarioId.parse(rawId), rol_id)
-    await registrarAuditoria({
-      usuario_id: user.id,
-      accion: "CAMBIO_ROL",
-      modulo: "usuarios",
-      descripcion: `Cambió el rol del usuario ${usuario.nombre} (${usuario.email})`,
-    })
+    await cambiarRolUsuario(user, usuarioId.parse(rawId), rol_id)
     revalidatePath("/admin/soporte")
   })
 }
@@ -46,15 +35,8 @@ export async function resetearPasswordUsuarioAction(rawId: number, input: unknow
   return adminAction(
     { permission: { module: "usuarios", action: "update" }, error: "Error al resetear contraseña" },
     async (user) => {
-      const id = usuarioId.parse(rawId)
       const { nueva_password } = resetPasswordBody.parse(input)
-      await resetearPasswordUsuario(user, id, nueva_password)
-      await registrarAuditoria({
-        usuario_id: user.id,
-        accion: "RESET_PASSWORD",
-        modulo: "usuarios",
-        descripcion: `Contraseña reseteada para usuario ID ${id}`,
-      })
+      await resetearPasswordUsuario(user, usuarioId.parse(rawId), nueva_password)
       revalidatePath("/admin/soporte")
     },
   )

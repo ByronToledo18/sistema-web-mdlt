@@ -23,3 +23,7 @@ export function apiError(error: unknown, fallbackMsg = "Error en el servidor") {
   }
   return NextResponse.json({ error: fallbackMsg }, { status: 500 })
 }
+
+// 403 de withAuth/adminAction mientras el usuario del panel tenga
+// debe_cambiar_password (contraseña asignada por soporte o un administrador).
+export const DEBE_CAMBIAR_PASSWORD = "Debes cambiar tu contraseña antes de continuar"

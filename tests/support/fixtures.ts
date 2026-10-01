@@ -1,5 +1,9 @@
 // Datos mínimos para los tests de servicios. Cada helper inserta una fila con
 // valores por defecto razonables y devuelve la fila creada.
+//
+// Productos y servicios se crean SIN IVA (graba_iva: false) para que las
+// cuentas de stock, cobros y estados sigan siendo simples; los tests de IVA
+// (tests/services/iva.test.ts) lo activan explícitamente.
 
 import { eq } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
@@ -31,7 +35,7 @@ export async function crearProducto(datos: Partial<typeof productos.$inferInsert
   seq++
   const [row] = await db
     .insert(productos)
-    .values({ nombre: `Tutu ${seq}`, sku: `SKU-${seq}`, precio: "25.00", stock: 10, ...datos })
+    .values({ nombre: `Tutu ${seq}`, sku: `SKU-${seq}`, precio: "25.00", stock: 10, graba_iva: false, ...datos })
     .returning()
   return row
 }
@@ -40,7 +44,7 @@ export async function crearServicio(datos: Partial<typeof servicios.$inferInsert
   seq++
   const [row] = await db
     .insert(servicios)
-    .values({ nombre: `Servicio ${seq}`, precio_base: "15.00", ...datos })
+    .values({ nombre: `Servicio ${seq}`, precio_base: "15.00", graba_iva: false, ...datos })
     .returning()
   return row
 }

@@ -1,9 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest"
+import { eq } from "drizzle-orm"
 import { NextRequest } from "next/server"
 import { POST as loginAdmin } from "@/app/api/auth/login/route"
 import { POST as logoutAdmin } from "@/app/api/auth/logout/route"
 import { POST as loginPortal } from "@/app/api/portal/login/route"
 import { POST as logoutPortal } from "@/app/api/portal/logout/route"
+import { POST as registroPortal } from "@/app/api/portal/registro/route"
 import { POST as crearTicketPublico } from "@/app/api/soporte/tickets/route"
 import { getClienteFromToken, getCurrentUser } from "@/lib/auth"
 import { hashPassword } from "@/lib/password"
@@ -96,16 +98,48 @@ describe("rutas de login y logout del admin", () => {
   test("rate limit del login admin: 429 tras 10 intentos desde la misma IP", async () => {
     const statuses: number[] = []
     for (let i = 0; i < 11; i++) {
-      const body = { email: "x@test.local", password: "x" }
+      // Un email distinto por intento: aquí se prueba solo el límite por IP.
+      const body = { email: `x${i}@test.local`, password: "x" }
       const res = await loginAdmin(post("/api/auth/login", body, {}, "10.9.9.9"), ctx)
       statuses.push(res.status)
     }
     expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
     expect(statuses[10]).toBe(429)
   })
+
+  test("rate limit por cuenta: 429 tras 10 intentos al mismo email desde IPs distintas", async () => {
+    // Cuenta propia del test: el contador en memoria se comparte en el archivo.
+    const admin = await crearAdmin()
+    await db.update(usuarios).set({ email: "bea@test.local" }).where(eq(usuarios.id, admin.id))
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      // Cambia la capitalización: cuenta el email normalizado.
+      const email = i % 2 ? "BEA@test.local" : "bea@test.local"
+      const res = await loginAdmin(post("/api/auth/login", { email, password: "mala" }), ctx)
+      statuses.push(res.status)
+    }
+    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
+    expect(statuses[10]).toBe(429)
+    // Incluso con la contraseña correcta, hasta que pase la ventana.
+    const correcta = await loginAdmin(post("/api/auth/login", { email: "bea@test.local", password: "clave-correcta" }), ctx)
+    expect(correcta.status).toBe(429)
+    // Otra cuenta no se ve afectada.
+    const otra = await loginAdmin(post("/api/auth/login", { email: "otra@test.local", password: "x" }), ctx)
+    expect(otra.status).toBe(401)
+  })
 })
 
 describe("rutas de login y logout del portal", () => {
+  test("rate limit por cuenta en el portal: 429 tras 10 intentos al mismo email", async () => {
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      const res = await loginPortal(post("/api/portal/login", { email: "spray@test.local", password: "x" }), ctx)
+      statuses.push(res.status)
+    }
+    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
+    expect(statuses[10]).toBe(429)
+  })
+
   test("login y logout revocan el token del portal", async () => {
     await crearCliente({ email: "cli@test.local", hash_password: await hashPassword("secreta") })
     const res = await loginPortal(post("/api/portal/login", { email: "cli@test.local", password: "secreta" }), ctx)
@@ -140,5 +174,29 @@ describe("POST público de tickets", () => {
       statuses.push(res.status)
     }
     expect(statuses).toEqual([201, 201, 201, 201, 201, 429])
+  })
+})
+
+describe("ruta de registro del portal", () => {
+  test("201 con id y nombre, sin el email; los choques responden el mismo 400 genérico", async () => {
+    await crearCliente({ cedula: "0933333333", email: "duena@test.local", telefono: "0994444444" })
+    const body = {
+      nombre: "Nueva Persona",
+      cedula: "0944444444",
+      email: "nueva@test.local",
+      telefono: "0995555555",
+      password: "secreta",
+    }
+
+    const ok = await registroPortal(post("/api/portal/registro", body), ctx)
+    expect(ok.status).toBe(201)
+    const { cliente } = await ok.json()
+    expect(Object.keys(cliente).sort()).toEqual(["id", "nombre"])
+
+    const generico = { error: "No se pudo completar el registro, contacta a la tienda" }
+    const emailRepetido = await registroPortal(post("/api/portal/registro", { ...body, cedula: "0955555555" }), ctx)
+    expect([emailRepetido.status, await emailRepetido.json()]).toEqual([400, generico])
+    const cedulaConCuenta = await registroPortal(post("/api/portal/registro", { ...body, email: "otra@test.local" }), ctx)
+    expect([cedulaConCuenta.status, await cedulaConCuenta.json()]).toEqual([400, generico])
   })
 })

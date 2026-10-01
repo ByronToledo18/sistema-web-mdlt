@@ -2,7 +2,7 @@ import "server-only"
 
 import { ZodError } from "zod"
 import type { UserPayload } from "@/lib/auth"
-import { HttpError } from "@/lib/http"
+import { DEBE_CAMBIAR_PASSWORD, HttpError } from "@/lib/http"
 import type { Action, Module } from "@/lib/permissions"
 import { assertCan } from "@/server/auth/guard"
 import { getSessionUser } from "@/server/auth/session"
@@ -18,6 +18,9 @@ interface ActionOptions {
   permission: { module: Module; action: Action } | null
   // Mensaje si algo falla de forma inesperada.
   error: string
+  // Solo la acción de /cambiar-password: el resto responde 403 mientras el
+  // usuario tenga debe_cambiar_password.
+  permitirCambioPendiente?: boolean
 }
 
 // Equivalente de withAuth para Server Actions del panel admin:
@@ -36,6 +39,9 @@ export async function adminAction<T>(
   try {
     const user = await getSessionUser()
     if (!user) throw new HttpError(401, "Tu sesión expiró. Vuelve a iniciar sesión.")
+    if (user.debe_cambiar_password && !options.permitirCambioPendiente) {
+      throw new HttpError(403, DEBE_CAMBIAR_PASSWORD)
+    }
     if (options.permission) {
       assertCan(user, options.permission.module, options.permission.action)
     }

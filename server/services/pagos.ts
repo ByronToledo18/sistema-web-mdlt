@@ -8,7 +8,7 @@ import { db, withTx } from "@/server/db/client"
 import { clientes, pagos, pedidos } from "@/server/db/schema"
 import { fromCents, paginar, toCents } from "./_shared"
 import { crearEnvioAutomatico } from "./envios"
-import { assertPedidoEditable, bloquearPedido } from "./pedido-base"
+import { assertPedidoEditable, bloquearPedido, estaCerrado } from "./pedido-base"
 
 const pagoConPedido = {
   ...getTableColumns(pagos),
@@ -86,9 +86,23 @@ export async function registrarPago(user: UserPayload, input: RegistrarPago) {
   })
 }
 
+// Elimina un cobro con la fila del pedido bloqueada (igual que registrarPago).
+// Un pedido cerrado tiene saldo cero: quitarle un cobro lo dejaría cerrado y
+// con saldo pendiente, así que se rechaza para todos los roles. Para
+// corregirlo, el administrador primero reabre el pedido.
 export async function eliminarPago(id: number): Promise<void> {
-  const eliminados = await db.delete(pagos).where(eq(pagos.id, id)).returning({ id: pagos.id })
-  if (eliminados.length === 0) throw new HttpError(404, "Pago no encontrado")
+  await withTx(async (tx) => {
+    const [pago] = await tx.select({ pedido_id: pagos.pedido_id }).from(pagos).where(eq(pagos.id, id))
+    if (!pago) throw new HttpError(404, "Pago no encontrado")
+
+    const pedido = await bloquearPedido(tx, pago.pedido_id)
+    if (estaCerrado(pedido.estado)) {
+      throw new HttpError(400, "No se pueden eliminar cobros de un pedido terminado, anulado o entregado: reábrelo primero")
+    }
+
+    const eliminados = await tx.delete(pagos).where(eq(pagos.id, id)).returning({ id: pagos.id })
+    if (eliminados.length === 0) throw new HttpError(404, "Pago no encontrado")
+  })
 }
 
 // --- Reportes de cobros ---------------------------------------------------------------
@@ -108,7 +122,7 @@ export function mesEnDias(year: number, month: number): [string, string] {
 }
 
 // Cobros del mes y total de los pedidos que recibieron al menos un cobro en el
-// mes. Cada pedido se suma una sola vez, por id (antes era SUM(DISTINCT total),
+// mes. total_pedidos es pedidos.total, con IVA (igual que los cobros). Cada pedido se suma una sola vez, por id (antes era SUM(DISTINCT total),
 // que juntaba pedidos distintos con el mismo total).
 export async function consolidacionMensual(year: number, month: number) {
   const rango = rangoDias(...mesEnDias(year, month))

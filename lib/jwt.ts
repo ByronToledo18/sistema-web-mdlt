@@ -16,6 +16,10 @@ export interface UserPayload {
   nombre: string
   rol: string
   rol_id: number
+  // Contraseña asignada por otra persona: solo puede ir a /cambiar-password.
+  // Va en el token para que el proxy redirija sin tocar la BD; getCurrentUser
+  // lo vuelve a leer de la BD (fuente de verdad).
+  debe_cambiar_password?: boolean
 }
 
 export interface ClientePayload {

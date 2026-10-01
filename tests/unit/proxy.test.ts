@@ -80,4 +80,18 @@ describe("proxy.ts", () => {
     expect(re.test("/_next/static/chunk.js")).toBe(false)
     expect(re.test("/logo.png")).toBe(false)
   })
+
+  test("debe_cambiar_password: /admin y /login van a /cambiar-password", async () => {
+    const token = await generateToken({ ...usuario("administrador"), debe_cambiar_password: true }, 0)
+    expect(await destino("/admin/dashboard", token)).toBe("/cambiar-password")
+    expect(await destino("/admin/pedidos/1", token)).toBe("/cambiar-password")
+    expect(await destino("/login", token)).toBe("/cambiar-password")
+    expect(await destino("/cambiar-password", token)).toBe("next")
+  })
+
+  test("/cambiar-password sin sesión va al login", async () => {
+    expect(await destino("/cambiar-password")).toBe("/login")
+    const token = await generateToken(usuario("asistente"), 0)
+    expect(await destino("/cambiar-password", token)).toBe("next")
+  })
 })

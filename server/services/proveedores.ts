@@ -2,12 +2,12 @@ import "server-only"
 
 import { and, asc, count, desc, eq, getTableColumns, ilike, isNotNull, ne, or, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
+import { IVA_RATE } from "@/lib/iva"
 import { db, withTx } from "@/server/db/client"
 import { productos, proveedores, proveedorFacturaItems, proveedorFacturas, proveedorPagos } from "@/server/db/schema"
 import type { CrearFacturaProveedor, DatosProveedor, PagoFacturaProveedor } from "@/server/validators/proveedores"
 import { fromCents, paginar, pgErrorCode, PG_UNIQUE_VIOLATION, toCents } from "./_shared"
 
-const IVA_RATE = 0.15
 
 // --- Proveedores --------------------------------------------------------------------
 

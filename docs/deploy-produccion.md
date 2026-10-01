@@ -55,7 +55,9 @@ node --env-file=.env.prod.local --import tsx scripts/create-admin.ts
 ```
 
 Muestra una sola vez las contraseñas aleatorias de `admin@` y `soporte@`.
-Guárdalas en un gestor de contraseñas. Después, borra el archivo:
+Los usuarios quedan con `debe_cambiar_password`: en el primer login se les
+pide cambiarla (`/cambiar-password`). Guarda la contraseña inicial en un
+gestor de contraseñas. Después, borra el archivo:
 
 ```bash
 rm .env.prod.local

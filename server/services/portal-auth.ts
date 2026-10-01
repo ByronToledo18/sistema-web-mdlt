@@ -66,17 +66,27 @@ export async function iniciarSesionCliente({
 }
 
 // Mensaje único para cualquier registro que choque con un cliente existente
-// sin poder probar que es el mismo: no revela qué dato existe.
+// (cédula con cuenta, email ya usado, datos que no se pueden vincular): no
+// revela qué dato existe ni de quién es.
 export const REGISTRO_NO_VINCULABLE = "No se pudo completar el registro, contacta a la tienda"
 
-export async function registrarCliente(input: RegistroInput) {
-  // La cédula es el identificador canónico del cliente en todo el sistema
-  // (es lo que usa el checkout del catálogo público, que no requiere login).
-  // Si ya existe una fila de `clientes` con esa cédula - creada por un pedido
-  // anónimo o por el admin - se vincula en vez de crear un duplicado.
+// Lo que devuelve el registro (y la ruta, con 201): nada que no haya enviado
+// quien se registra. En particular, nunca el email de un cliente existente.
+export interface ClienteRegistrado {
+  id: number
+  nombre: string
+}
+
+export async function registrarCliente(input: RegistroInput): Promise<ClienteRegistrado> {
+  // La cédula es el identificador canónico del cliente en todo el sistema.
+  // Si ya existe una fila de `clientes` con esa cédula (creada por el admin o
+  // por un pedido) y sin contraseña, se vincula en vez de crear un duplicado,
+  // pero SOLO si el email coincide: conocer la cédula no basta para
+  // apropiarse del cliente y ver su historial.
   const [conCedula] = await db
     .select({
       id: clientes.id,
+      nombre: clientes.nombre,
       email: clientes.email,
       telefono: clientes.telefono,
       direccion: clientes.direccion,
@@ -85,37 +95,51 @@ export async function registrarCliente(input: RegistroInput) {
     .from(clientes)
     .where(eq(clientes.cedula, input.cedula))
 
-  if (conCedula?.hash_password) throw new HttpError(400, "Esta cédula ya tiene una cuenta registrada")
+  if (conCedula?.hash_password) throw new HttpError(400, REGISTRO_NO_VINCULABLE)
 
   const [conEmail] = await db
     .select({ id: clientes.id })
     .from(clientes)
     .where(and(emailIgual(clientes.email, input.email), conCedula ? ne(clientes.id, conCedula.id) : undefined))
     .limit(1)
-  if (conEmail) throw new HttpError(400, "Este email ya está registrado")
+  if (conEmail) throw new HttpError(400, REGISTRO_NO_VINCULABLE)
+
+  if (conCedula && !coincideEmail(conCedula.email, input.email)) {
+    // Solo coincide el teléfono: puede ser el dueño con otro email, pero el
+    // teléfono no prueba identidad. No se vincula; la tienda lo verifica.
+    if (coincideTelefono(conCedula.telefono, input.telefono)) {
+      await crearTicket({
+        tipo: "consulta",
+        prioridad: "media",
+        descripcion:
+          `Registro en el portal no vinculado: la cédula ${input.cedula} ya es el cliente #${conCedula.id} ` +
+          `(${conCedula.nombre}) y el teléfono coincide, pero el email no. Verifica la identidad antes de ` +
+          `vincular la cuenta.\n\nDatos enviados: nombre ${input.nombre}, email ${input.email}, ` +
+          `teléfono ${input.telefono ?? "-"}, dirección ${input.direccion ?? "-"}.`,
+        email_contacto: input.email,
+      })
+    }
+    throw new HttpError(400, REGISTRO_NO_VINCULABLE)
+  }
 
   const hash_password = await hashPassword(input.password)
 
   try {
     if (conCedula) {
-      // Conocer la cédula no basta para apropiarse del cliente (y ver su
-      // historial): el email o el teléfono enviados tienen que coincidir con
-      // los que ya tiene. Los datos de contacto existentes no se reemplazan;
-      // solo se completan los que faltan.
-      if (!coincideContacto(conCedula, input)) throw new HttpError(400, REGISTRO_NO_VINCULABLE)
+      // Los datos de contacto existentes no se reemplazan; solo se completan
+      // los que faltan.
       const [cliente] = await db
         .update(clientes)
         .set({
           hash_password,
-          email: conCedula.email ?? input.email,
           telefono: conCedula.telefono ?? input.telefono,
           direccion: conCedula.direccion ?? input.direccion,
           updated_at: sql`CURRENT_TIMESTAMP`,
         })
         // Sin contraseña todavía: dos registros a la vez no vinculan dos veces.
         .where(and(eq(clientes.id, conCedula.id), isNull(clientes.hash_password)))
-        .returning({ id: clientes.id, nombre: clientes.nombre, email: clientes.email })
-      if (!cliente) throw new HttpError(400, "Esta cédula ya tiene una cuenta registrada")
+        .returning({ id: clientes.id, nombre: clientes.nombre })
+      if (!cliente) throw new HttpError(400, REGISTRO_NO_VINCULABLE)
       return cliente
     }
 
@@ -130,7 +154,7 @@ export async function registrarCliente(input: RegistroInput) {
         hash_password,
         activo: true,
       })
-      .returning({ id: clientes.id, nombre: clientes.nombre, email: clientes.email })
+      .returning({ id: clientes.id, nombre: clientes.nombre })
     return cliente
   } catch (error) {
     if (pgErrorCode(error) === PG_UNIQUE_VIOLATION) {
@@ -140,14 +164,12 @@ export async function registrarCliente(input: RegistroInput) {
   }
 }
 
-function coincideContacto(
-  existente: { email: string | null; telefono: string | null },
-  input: { email: string; telefono: string | null },
-): boolean {
-  const email = existente.email ? normalizarEmail(existente.email) : null
-  if (email && email === input.email) return true
-  const telefono = existente.telefono ? normalizarTelefono(existente.telefono) : null
-  return !!telefono && !!input.telefono && telefono === normalizarTelefono(input.telefono)
+function coincideEmail(existente: string | null, email: string): boolean {
+  return !!existente && normalizarEmail(existente) === email
+}
+
+function coincideTelefono(existente: string | null, telefono: string | null): boolean {
+  return !!existente && !!telefono && normalizarTelefono(existente) === normalizarTelefono(telefono)
 }
 
 // Genera un enlace de reseteo de un solo uso y lo deja en un ticket de

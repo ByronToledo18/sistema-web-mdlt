@@ -14,7 +14,7 @@ export async function descontarStock(
   productoId: number,
   cantidad: number,
   opts: { soloActivos?: boolean } = {},
-): Promise<{ nombre: string; precio: string }> {
+): Promise<{ nombre: string; precio: string; graba_iva: boolean }> {
   const [actualizado] = await ex
     .update(productos)
     .set({ stock: sql`${productos.stock} - ${cantidad}`, updated_at: sql`CURRENT_TIMESTAMP` })
@@ -25,7 +25,7 @@ export async function descontarStock(
         opts.soloActivos ? eq(productos.activo, true) : undefined,
       ),
     )
-    .returning({ nombre: productos.nombre, precio: productos.precio })
+    .returning({ nombre: productos.nombre, precio: productos.precio, graba_iva: productos.graba_iva })
 
   if (actualizado) return actualizado
 

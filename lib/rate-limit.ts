@@ -73,8 +73,20 @@ export function getClientIp(request: NextRequest): string {
 }
 
 export async function rateLimit(request: NextRequest, opts: RateLimitOptions): Promise<RateLimitResult> {
-  const key = `rl:${opts.key}:${getClientIp(request)}${opts.id ? `:${opts.id.toLowerCase()}` : ""}`
+  return contar(`rl:${opts.key}:${getClientIp(request)}${opts.id ? `:${opts.id.toLowerCase()}` : ""}`, opts)
+}
 
+// Límite por cuenta (email normalizado), sin importar la IP: frena el
+// password spraying contra una cuenta desde muchas IPs, que el límite por IP
+// no ve. Se aplica además del límite por IP.
+export async function rateLimitCuenta(
+  opts: Omit<RateLimitOptions, "id">,
+  cuenta: string,
+): Promise<RateLimitResult> {
+  return contar(`rl:${opts.key}:cuenta:${cuenta.trim().toLowerCase()}`, opts)
+}
+
+async function contar(key: string, opts: { limit: number; windowSec: number }): Promise<RateLimitResult> {
   let hit: { count: number; ttl: number }
   if (REDIS_URL && REDIS_TOKEN) {
     try {
@@ -103,6 +115,10 @@ export function rateLimitResponse(retryAfter: number) {
 export const RATE_LIMITS = {
   adminLogin: { key: "auth-login", limit: 10, windowSec: 15 * 60 },
   portalLogin: { key: "portal-login", limit: 10, windowSec: 15 * 60 },
+  // Por cuenta (rateLimitCuenta): intentos contra un mismo email desde
+  // cualquier IP.
+  adminLoginCuenta: { key: "auth-login", limit: 10, windowSec: 15 * 60 },
+  portalLoginCuenta: { key: "portal-login", limit: 10, windowSec: 15 * 60 },
   portalRegistro: { key: "portal-registro", limit: 5, windowSec: 60 * 60 },
   recuperarPassword: { key: "portal-recuperar", limit: 5, windowSec: 15 * 60 },
   resetPassword: { key: "portal-reset", limit: 10, windowSec: 15 * 60 },

@@ -29,7 +29,8 @@ test("el administrador crea un pedido y registra el pago completo", async ({ pag
   await page.getByRole("button", { name: "Registrar Pago" }).click()
   const pago = page.getByRole("dialog", { name: "Registrar Pago" })
   // El monto sugerido es el saldo pendiente; se fija igual por si cambia la UI.
-  await pago.getByLabel(/Monto/).fill("50")
+  // 2 × $25,00 + IVA 15 % (el producto del seed grava IVA) = $57,50.
+  await pago.getByLabel(/Monto/).fill("57.50")
   await pago.getByRole("combobox").click()
   await page.getByRole("option", { name: "Efectivo" }).click()
   await pago.getByRole("button", { name: "Registrar Pago" }).click()

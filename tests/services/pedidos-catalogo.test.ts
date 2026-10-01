@@ -127,6 +127,54 @@ describe("crearPedidoDesdeCatalogo", () => {
     expect(items.find((i) => i.item_id === envio.id && i.item_tipo === "servicio")?.subtotal).toBe("5.50")
   })
 
+  test("rechaza el servicio Envío como ítem enviado por el cliente y no deja nada a medias", async () => {
+    const cliente = await crearCliente()
+    const producto = await crearProducto({ stock: 5 })
+    const envio = await crearServicioEnvio()
+
+    await expect(
+      crearPedidoDesdeCatalogo(
+        cliente.id,
+        checkout({
+          items: [
+            { id: producto.id, tipo: "producto", cantidad: 1 },
+            { id: envio.id, tipo: "servicio", cantidad: 1 },
+          ],
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 400, message: "Servicio no encontrado o inactivo" })
+    expect(await stockDe(producto.id)).toBe(5)
+    expect(await db.select().from(pedidos)).toHaveLength(0)
+  })
+
+  test("con envío a domicilio, el ítem Envío lo agrega solo el servidor (una vez)", async () => {
+    const cliente = await crearCliente()
+    const producto = await crearProducto({ precio: "20.00" })
+    const envio = await crearServicioEnvio()
+    await crearTarifa("Quito", "5.50")
+
+    await expect(
+      crearPedidoDesdeCatalogo(
+        cliente.id,
+        checkout({
+          items: [
+            { id: producto.id, tipo: "producto", cantidad: 1 },
+            { id: envio.id, tipo: "servicio", cantidad: 3 },
+          ],
+          metodoEntrega: "envio",
+          ciudadEnvio: "Quito",
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 400 })
+
+    const pedido = await crearPedidoDesdeCatalogo(
+      cliente.id,
+      checkout({ items: [{ id: producto.id, tipo: "producto", cantidad: 1 }], metodoEntrega: "envio", ciudadEnvio: "Quito" }),
+    )
+    const items = await db.select().from(pedidoItems).where(eq(pedidoItems.pedido_id, pedido.id))
+    expect(items.filter((i) => i.item_tipo === "servicio" && i.item_id === envio.id)).toHaveLength(1)
+  })
+
   test("envío a una ciudad sin tarifa: rechaza y devuelve el stock", async () => {
     const cliente = await crearCliente()
     const producto = await crearProducto({ stock: 4 })

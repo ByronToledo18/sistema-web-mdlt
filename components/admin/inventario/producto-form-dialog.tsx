@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { IVA_PORCENTAJE } from "@/lib/iva"
 import { guardarProductoAction } from "@/app/(admin)/admin/inventario/actions"
 import { ImageUploadField } from "./image-upload-field"
 import type { Producto } from "./types"
@@ -33,6 +34,7 @@ function formDe(producto: Producto | null) {
     precio: producto?.precio ?? "",
     stock: producto ? String(producto.stock ?? 0) : "",
     activo: producto?.activo ?? true,
+    graba_iva: producto?.graba_iva ?? true,
     imagen_url: producto?.imagen_url ?? null,
   }
 }
@@ -138,6 +140,20 @@ function ProductoForm({ producto, onDone }: { producto: Producto | null; onDone:
         <div className="flex items-center space-x-2">
           <Switch id="activo" checked={form.activo} onCheckedChange={(activo) => setForm({ ...form, activo })} />
           <Label htmlFor="activo">Producto activo</Label>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="graba-iva-producto"
+              checked={form.graba_iva}
+              onCheckedChange={(graba_iva) => setForm({ ...form, graba_iva })}
+            />
+            <Label htmlFor="graba-iva-producto">Grava IVA</Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            El precio no incluye IVA. Si grava, el pedido le suma el {IVA_PORCENTAJE} %.
+          </p>
         </div>
       </div>
 

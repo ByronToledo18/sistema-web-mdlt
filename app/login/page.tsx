@@ -59,7 +59,8 @@ export default function LoginPage() {
         return
       }
 
-      router.push(redirect)
+      // Con una contraseña asignada por otra persona, primero hay que cambiarla.
+      router.push(data.debe_cambiar_password ? "/cambiar-password" : redirect)
       router.refresh()
     } catch {
       setError("Error de conexión")
