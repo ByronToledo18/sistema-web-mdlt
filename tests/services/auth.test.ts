@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 import { createHash } from "node:crypto"
 import { eq } from "drizzle-orm"
 import { hashPassword, verifyPassword } from "@/lib/password"
+import { RATE_LIMITS, resetearFallos } from "@/lib/rate-limit"
 import { db } from "@/server/db/client"
 import { auditoria, clientes, roles, tickets, usuarios } from "@/server/db/schema"
 import { iniciarSesionAdmin, revocarSesionUsuario } from "@/server/services/auth"
@@ -216,6 +217,36 @@ describe("cambiar la contraseña desde el portal", () => {
     expect(await cambiarPasswordCliente(c.id, "actual1", "nueva-clave")).toBe(1)
     expect(await verifyPassword("nueva-clave", (await filaCliente(c.id)).hash_password!)).toBe(true)
   })
+
+  test("10 intentos con la contraseña actual incorrecta bloquean (429), también a la correcta", { timeout: 60_000 }, async () => {
+    const c = await crearCliente({ hash_password: await hashPassword("actual1") })
+    try {
+      for (let i = 0; i < 10; i++) {
+        await expect(cambiarPasswordCliente(c.id, "mala", "nueva-clave")).rejects.toMatchObject({ status: 401 })
+      }
+      await expect(cambiarPasswordCliente(c.id, "actual1", "nueva-clave")).rejects.toMatchObject({ status: 429 })
+      expect((await filaCliente(c.id)).token_version).toBe(0)
+    } finally {
+      // El contador en memoria es por id y los ids se repiten tras resetDb.
+      await resetearFallos(RATE_LIMITS.portalCambioPassword, `cliente:${c.id}`)
+    }
+  })
+
+  test("un cambio correcto resetea los fallos", { timeout: 60_000 }, async () => {
+    const c = await crearCliente({ hash_password: await hashPassword("actual1") })
+    try {
+      for (let i = 0; i < 9; i++) {
+        await expect(cambiarPasswordCliente(c.id, "mala", "x-nueva-1")).rejects.toMatchObject({ status: 401 })
+      }
+      expect(await cambiarPasswordCliente(c.id, "actual1", "nueva-clave")).toBe(1)
+      for (let i = 0; i < 9; i++) {
+        await expect(cambiarPasswordCliente(c.id, "mala", "x-nueva-2")).rejects.toMatchObject({ status: 401 })
+      }
+      expect(await cambiarPasswordCliente(c.id, "nueva-clave", "otra-clave")).toBe(2)
+    } finally {
+      await resetearFallos(RATE_LIMITS.portalCambioPassword, `cliente:${c.id}`)
+    }
+  })
 })
 
 describe("registro sobre un cliente existente (misma cédula, sin contraseña)", () => {
@@ -251,6 +282,34 @@ describe("registro sobre un cliente existente (misma cédula, sin contraseña)",
     expect(lista[0].descripcion).toContain("0922222222")
     expect(lista[0].descripcion).toContain("+593 99 333 3333")
     expect(lista[0].descripcion).not.toContain("clave-secreta")
+  })
+
+  test("no repite el ticket mientras haya uno abierto para ese cliente; sí tras resolverlo", async () => {
+    const c = await crearCliente({ cedula: "0922222222", email: "duena@test.local", telefono: "0993333333" })
+    const otro = await crearCliente({ cedula: "0933333333", email: "otro@test.local", telefono: "0994444444" })
+    const intentar = (extra: Record<string, unknown>) =>
+      expect(registrarCliente(registro({ telefono: "0993333333", ...extra }))).rejects.toMatchObject({ status: 400 })
+
+    await intentar({ email: "nuevo@test.local" })
+    await intentar({ email: "nuevo@test.local" })
+    await intentar({ email: "otro-mas@test.local" })
+    let lista = await db.select().from(tickets)
+    expect(lista).toHaveLength(1)
+    expect(lista[0].descripcion).toContain(`[cliente #${c.id}]`)
+
+    // Otro cliente con el mismo motivo sí genera su propio ticket.
+    await expect(
+      registrarCliente(registro({ cedula: "0933333333", email: "x@test.local", telefono: "0994444444" })),
+    ).rejects.toMatchObject({ status: 400 })
+    expect(await db.select().from(tickets)).toHaveLength(2)
+
+    // Un ticket resuelto ya no cuenta como abierto: se crea uno nuevo.
+    await db.update(tickets).set({ estado: "resuelto" }).where(eq(tickets.id, lista[0].id))
+    await intentar({ email: "nuevo@test.local" })
+    lista = await db.select().from(tickets)
+    expect(lista).toHaveLength(3)
+    expect(lista.filter((t) => t.descripcion.includes(`[cliente #${c.id}]`))).toHaveLength(2)
+    expect(lista.filter((t) => t.descripcion.includes(`[cliente #${otro.id}]`))).toHaveLength(1)
   })
 
   test("cliente existente sin email: tampoco vincula por teléfono", async () => {

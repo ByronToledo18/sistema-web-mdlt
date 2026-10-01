@@ -4,7 +4,6 @@ import { and, asc, desc, eq, getTableColumns, ilike, ne, or, sql } from "drizzle
 import type { UserPayload } from "@/lib/auth"
 import { anioNegocio, hoyNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
-import { desgloseIva } from "@/lib/iva"
 import { db, withTx, type Tx } from "@/server/db/client"
 import {
   clientes,
@@ -34,6 +33,7 @@ import {
   montosDeLinea,
   recalcularTotalPedido,
   saldoPendienteCents,
+  totalesDeLineas,
 } from "./pedido-base"
 import { ajustarStock, descontarStock, devolverStock } from "./stock"
 import { registrarAuditoria } from "./auditoria"
@@ -383,8 +383,8 @@ export async function crearPedidoDesdeCatalogo(clienteId: number, input: CrearPe
         ...montosDeLinea(costoEnvio, 1, servicioEnvio.graba_iva),
       })
     }
-    // Total con IVA: Σ subtotales + Σ IVA por línea (igual que recalcularTotalPedido).
-    const { total } = desgloseIva(lineas.map((l) => ({ subtotalCents: toCents(l.subtotal), grabaIva: l.graba_iva })))
+    // Total con IVA sobre la base gravada (igual que recalcularTotalPedido).
+    const { total } = totalesDeLineas(lineas)
 
     let notas = `Método de entrega: ${esEnvio ? "Envío a Domicilio" : "Retiro en Tienda"}`
     if (esEnvio && input.ciudadEnvio) notas += `\nCiudad de envío: ${input.ciudadEnvio}`
@@ -441,22 +441,16 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
       if (pedido.estado === "anulado") throw new HttpError(400, "No se puede facturar un pedido anulado")
 
       const items = await tx
-        .select({ subtotal: pedidoItems.subtotal, iva: pedidoItems.iva, graba_iva: pedidoItems.graba_iva })
+        .select({ subtotal: pedidoItems.subtotal, graba_iva: pedidoItems.graba_iva })
         .from(pedidoItems)
         .where(eq(pedidoItems.pedido_id, pedidoId))
       if (items.length === 0) throw new HttpError(400, "El pedido no tiene ítems para facturar")
 
-      // Desglose a partir de las líneas guardadas (su IVA ya está redondeado
-      // por línea). El total coincide con pedidos.total, que es lo cobrado.
-      let subtotal = 0
-      let subtotal0 = 0
-      let iva = 0
-      for (const item of items) {
-        subtotal += toCents(item.subtotal)
-        if (!item.graba_iva) subtotal0 += toCents(item.subtotal)
-        iva += toCents(item.iva)
-      }
-      if (subtotal + iva !== toCents(pedido.total)) {
+      // Desglose a partir de las líneas guardadas, con el IVA sobre la base
+      // gravada (método del SRI; el IVA por línea es solo informativo). El
+      // total coincide con pedidos.total, que es lo cobrado.
+      const { subtotal, subtotal0, iva, total } = totalesDeLineas(items)
+      if (total !== toCents(pedido.total)) {
         // No debería pasar: recalcularTotalPedido mantiene el total al día.
         throw new HttpError(500, "El total del pedido no coincide con sus ítems")
       }
@@ -478,7 +472,7 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
           subtotal: fromCents(subtotal),
           subtotal_0: fromCents(subtotal0),
           iva: fromCents(iva),
-          total: fromCents(subtotal + iva),
+          total: fromCents(total),
         })
         .returning()
       return { factura: creada, codigo: pedido.codigo }

@@ -13,6 +13,7 @@ import {
   generarFactura,
 } from "@/server/services/pedidos"
 import { crearPedidoCatalogoBody } from "@/server/validators/pedidos"
+import { desgloseCarrito } from "@/lib/cart"
 import { resetDb } from "../support/db-client"
 import {
   admin,
@@ -24,8 +25,9 @@ import {
   crearTarifa,
 } from "../support/fixtures"
 
-// IVA por ítem: los precios del catálogo no incluyen IVA; pedidos.total suma
-// el IVA de las líneas que lo gravan y es lo que se cobra y se factura.
+// IVA por ítem: los precios del catálogo no incluyen IVA. pedidos.total =
+// Σ subtotales + IVA sobre la base gravada (round(Σ gravados × 15 %), método
+// del SRI); es lo que se cobra y se factura. El IVA por línea es informativo.
 
 beforeEach(resetDb)
 
@@ -58,7 +60,7 @@ describe("líneas de pedido", () => {
     expect(await totalDe(pedido.id)).toBe("115.00")
   })
 
-  test("mezcla gravados y no gravados, con el IVA redondeado por línea", async () => {
+  test("mezcla gravados y no gravados; la línea guarda su IVA redondeado (informativo)", async () => {
     const pedido = await pedidoNuevo()
     const gravado = await crearProducto({ graba_iva: true })
     const exento = await crearServicio({ graba_iva: false })
@@ -70,6 +72,27 @@ describe("líneas de pedido", () => {
     expect(a.iva).toBe("1.58")
     expect([b.subtotal, b.graba_iva, b.iva]).toEqual(["9.99", false, "0.00"])
     expect(await totalDe(pedido.id)).toBe("22.07") // 10,50 + 1,58 + 9,99
+  })
+
+  test("el IVA del pedido se calcula sobre la base gravada, no sumando el de cada línea", async () => {
+    const pedido = await pedidoNuevo()
+    const gravado = await crearProducto({ graba_iva: true })
+    const otro = await crearProducto({ graba_iva: true })
+
+    // Cada línea: 10,50 × 15 % = 1,575 → 1,58. Por línea sumaría 3,16; sobre
+    // la base: 21,00 × 15 % = 3,15.
+    const a = await agregarItem(asistente, pedido.id, item("producto", gravado.id, 1, 10.5))
+    const b = await agregarItem(asistente, pedido.id, item("producto", otro.id, 1, 10.5))
+    expect([a.iva, b.iva]).toEqual(["1.58", "1.58"])
+    expect(await totalDe(pedido.id)).toBe("24.15")
+
+    const factura = await generarFactura(admin, pedido.id)
+    expect([factura.subtotal, factura.subtotal_0, factura.iva, factura.total]).toEqual([
+      "21.00",
+      "0.00",
+      "3.15",
+      "24.15",
+    ])
   })
 
   test("cambiar el flag del producto después no altera las líneas existentes", async () => {
@@ -186,6 +209,33 @@ describe("checkout del catálogo", () => {
     ])
   })
 
+  test("el checkout calcula el IVA sobre la base gravada, igual que el carrito", async () => {
+    const cliente = await crearCliente()
+    const a = await crearProducto({ precio: "10.50", graba_iva: true })
+    const b = await crearProducto({ precio: "10.50", graba_iva: true })
+    const exento = await crearServicio({ precio_base: "3.33", graba_iva: false })
+
+    const pedido = await crearPedidoDesdeCatalogo(
+      cliente.id,
+      checkout({
+        items: [
+          { id: a.id, tipo: "producto", cantidad: 1 },
+          { id: b.id, tipo: "producto", cantidad: 1 },
+          { id: exento.id, tipo: "servicio", cantidad: 1 },
+        ],
+      }),
+    )
+
+    // 21,00 + 3,33 + round(21,00 × 15 %) = 3,15 (por línea serían 3,16).
+    expect(pedido.total).toBe("27.48")
+    const carrito = desgloseCarrito([
+      { id: a.id, tipo: "producto", nombre: "A", precio: 10.5, cantidad: 1, graba_iva: true },
+      { id: b.id, tipo: "producto", nombre: "B", precio: 10.5, cantidad: 1, graba_iva: true },
+      { id: exento.id, tipo: "servicio", nombre: "C", precio: 3.33, cantidad: 1, graba_iva: false },
+    ])
+    expect(carrito.total).toBe(2_748)
+  })
+
   test.each([
     [true, "5.50", "0.83", "29.33"],
     [false, "5.50", "0.00", "28.50"],
@@ -201,7 +251,7 @@ describe("checkout del catálogo", () => {
       checkout({ items: [{ id: producto.id, tipo: "producto", cantidad: 1 }], metodoEntrega: "envio", ciudadEnvio: "Quito" }),
     )
 
-    // Producto: 20,00 + 3,00 de IVA.
+    // Base gravada: 20,00 (+ 5,50 si el envío grava) × 15 %.
     expect(pedido.total).toBe(total)
     const items = await db.select().from(pedidoItems).where(eq(pedidoItems.pedido_id, pedido.id))
     const lineaEnvio = items.find((i) => i.item_id === envio.id && i.item_tipo === "servicio")

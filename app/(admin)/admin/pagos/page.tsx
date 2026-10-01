@@ -72,7 +72,7 @@ export default async function PagosPage({ searchParams }: { searchParams: Search
                 <CardContent>
                   <div className="text-2xl font-bold">{formatCurrency(consolidacion.total_pagos)}</div>
                   <p className="text-xs text-muted-foreground">
-                    {MESES[month - 1]} {year}
+                    {MESES[month - 1]} {year} · con IVA
                   </p>
                 </CardContent>
               </Card>
@@ -95,7 +95,7 @@ export default async function PagosPage({ searchParams }: { searchParams: Search
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{formatCurrency(consolidacion.total_pedidos)}</div>
-                  <p className="text-xs text-muted-foreground">Valor total de pedidos</p>
+                  <p className="text-xs text-muted-foreground">Valor de los pedidos cobrados, con IVA</p>
                 </CardContent>
               </Card>
 

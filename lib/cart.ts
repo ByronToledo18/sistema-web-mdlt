@@ -1,4 +1,4 @@
-import { desgloseIva, type DesgloseIva } from "@/lib/iva"
+import { calcularTotales, type Totales } from "@/lib/iva"
 
 export interface CartItem {
   id: number
@@ -82,13 +82,13 @@ export function clearCart(): void {
   localStorage.removeItem(CART_KEY)
 }
 
-// Desglose del carrito (y del envío, si lo hay) en centavos, con el IVA
-// redondeado por línea igual que en el servidor. Solo es informativo: el
+// Desglose del carrito (y del envío, si lo hay) en centavos, con el IVA sobre
+// la base gravada igual que el servidor (lib/iva.ts). Solo es informativo: el
 // pedido lo recalcula el servidor con los precios y flags de la base.
 export function desgloseCarrito(
   items: CartItem[],
   envio?: { costo: number; grabaIva: boolean } | null,
-): DesgloseIva {
+): Totales {
   const lineas = items.map((item) => ({
     subtotalCents: Math.round(Math.round(item.precio * 100) * item.cantidad),
     grabaIva: item.graba_iva !== false,
@@ -96,5 +96,5 @@ export function desgloseCarrito(
   if (envio && envio.costo > 0) {
     lineas.push({ subtotalCents: Math.round(envio.costo * 100), grabaIva: envio.grabaIva })
   }
-  return desgloseIva(lineas)
+  return calcularTotales(lineas)
 }

@@ -122,7 +122,10 @@ export function mesEnDias(year: number, month: number): [string, string] {
 }
 
 // Cobros del mes y total de los pedidos que recibieron al menos un cobro en el
-// mes. total_pedidos es pedidos.total, con IVA (igual que los cobros). Cada pedido se suma una sola vez, por id (antes era SUM(DISTINCT total),
+// mes. total_pedidos es pedidos.total, CON IVA, a propósito: se compara con
+// los cobros, que también incluyen el IVA (es lo que paga el cliente). Las
+// ventas netas, sin IVA, están en el dashboard (server/services/dashboard.ts).
+// Cada pedido se suma una sola vez, por id (antes era SUM(DISTINCT total),
 // que juntaba pedidos distintos con el mismo total).
 export async function consolidacionMensual(year: number, month: number) {
   const rango = rangoDias(...mesEnDias(year, month))
