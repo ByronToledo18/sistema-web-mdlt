@@ -5,7 +5,9 @@ import { canAccessRoute } from "@/lib/permissions"
 
 const protectedRoutes = ["/admin"]
 
-export async function middleware(request: NextRequest) {
+// Next 16: "middleware" pasó a llamarse "proxy" y corre en Node (no Edge).
+// lib/jwt.ts sigue siendo puro: aquí no se toca la BD.
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get("auth-token")?.value
 
