@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { cookies } from "next/headers"
 import { hashPassword, verifyPassword, getClienteFromToken, generatePortalToken } from "@/lib/auth"
+import { apiError } from "@/lib/http"
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,8 +65,8 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error) {
     console.error("[v0] Change password error:", error)
-    return NextResponse.json({ error: error.message || "Error al cambiar contraseña" }, { status: 500 })
+    return apiError(error, "Error al cambiar contraseña")
   }
 }

@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { verifyPassword, generatePortalToken } from "@/lib/auth"
 import { cookies } from "next/headers"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { apiError } from "@/lib/http"
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,8 +77,8 @@ export async function POST(request: NextRequest) {
         email: cliente.email,
       },
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error("[v0] Login error:", error)
-    return NextResponse.json({ error: error.message || "Error al iniciar sesión" }, { status: 500 })
+    return apiError(error, "Error al iniciar sesión")
   }
 }

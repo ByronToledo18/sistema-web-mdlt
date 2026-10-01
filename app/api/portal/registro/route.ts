@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { hashPassword } from "@/lib/auth"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { apiError } from "@/lib/http"
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,8 +61,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ cliente }, { status: 201 })
-  } catch (error: any) {
+  } catch (error) {
     console.error("[v0] Registration error:", error)
-    return NextResponse.json({ error: error.message || "Error al registrarse" }, { status: 500 })
+    return apiError(error, "Error al registrarse")
   }
 }
