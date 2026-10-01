@@ -20,11 +20,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { sanitizeRedirect } from "@/lib/safe-redirect"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = searchParams.get("redirect") || "/admin/dashboard"
+  // Solo rutas internas: un ?redirect=https://... no saca al usuario del sitio.
+  const redirect = sanitizeRedirect(searchParams.get("redirect"))
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
