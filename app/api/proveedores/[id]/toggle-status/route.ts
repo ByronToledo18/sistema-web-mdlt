@@ -1,28 +1,13 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { alternarEstadoProveedor } from "@/server/services/proveedores"
+import { idParams, parseParams } from "@/server/validators/common"
 
-// POST - Toggle proveedor status
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth(["administrador"])
-
-    const { id } = await params
-
-    const result = await sql`
-      UPDATE proveedores
-      SET activo = NOT activo
-      WHERE id = ${id}
-      RETURNING *
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Proveedor no encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({ proveedor: result[0] })
-  } catch (error: any) {
-    console.error("[v0] Toggle proveedor status error:", error)
-    return NextResponse.json({ error: error.message || "Error al cambiar estado del proveedor" }, { status: 500 })
-  }
-}
+// POST - Activar/desactivar proveedor
+export const POST = withAuth<{ id: string }>(
+  { permission: { module: "proveedores", action: "update" }, error: "Error al cambiar estado del proveedor" },
+  async (_request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    return NextResponse.json({ proveedor: await alternarEstadoProveedor(id) })
+  },
+)

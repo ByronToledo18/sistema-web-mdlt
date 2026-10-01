@@ -1,39 +1,28 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth"
-import { getMovimiento, eliminarMovimiento } from "@/lib/nomina"
-import { createAuditLog } from "@/lib/audit"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { registrarAuditoria } from "@/server/services/auditoria"
+import { eliminarMovimiento, obtenerMovimiento } from "@/server/services/nomina"
+import { idParams, parseParams } from "@/server/validators/common"
+
+type Params = { id: string }
 
 // GET - Obtener un movimiento de nómina
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth(["administrador"])
-
-    const movimiento = await getMovimiento(Number.parseInt((await params).id))
-    if (!movimiento) {
-      return NextResponse.json({ error: "Movimiento no encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({ movimiento })
-  } catch (error: any) {
-    console.error("[v0] Get nomina movimiento error:", error)
-    return NextResponse.json({ error: error.message || "Error al obtener movimiento" }, { status: 500 })
-  }
-}
+export const GET = withAuth<Params>(
+  { permission: { module: "nomina", action: "read" }, error: "Error al obtener movimiento" },
+  async (_request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    return NextResponse.json({ movimiento: await obtenerMovimiento(id) })
+  },
+)
 
 // DELETE - Eliminar un movimiento de nómina (correcciones)
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await requireAuth(["administrador"])
+export const DELETE = withAuth<Params>(
+  { permission: { module: "nomina", action: "delete" }, error: "Error al eliminar movimiento" },
+  async (_request, { params }, user) => {
+    const { id } = await parseParams(params, idParams)
+    const movimiento = await eliminarMovimiento(id)
 
-    const id = Number.parseInt((await params).id)
-    const movimiento = await getMovimiento(id)
-    if (!movimiento) {
-      return NextResponse.json({ error: "Movimiento no encontrado" }, { status: 404 })
-    }
-
-    await eliminarMovimiento(id)
-
-    await createAuditLog({
+    await registrarAuditoria({
       usuario_id: user.id,
       accion: "eliminar",
       modulo: "nomina",
@@ -41,8 +30,5 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error("[v0] Delete nomina movimiento error:", error)
-    return NextResponse.json({ error: error.message || "Error al eliminar movimiento" }, { status: 500 })
-  }
-}
+  },
+)
