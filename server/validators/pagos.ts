@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { fechaNegocio } from "@/lib/fechas"
 import { ENVIO_ESTADOS } from "@/server/db/schema"
 import { id, isoDate, optionalText, positiveMoney, requiredText } from "./common"
 
@@ -20,13 +21,13 @@ export const periodoQuery = z.object({
     .number({ error: "Año inválido" })
     .int("Año inválido")
     .min(2000, "Año inválido")
-    .default(() => new Date().getFullYear()),
+    .default(() => fechaNegocio().year),
   month: z.coerce
     .number({ error: "Mes inválido" })
     .int("Mes inválido")
     .min(1, "Mes inválido")
     .max(12, "Mes inválido")
-    .default(() => new Date().getMonth() + 1),
+    .default(() => fechaNegocio().month),
 })
 
 export const reporteQuery = z

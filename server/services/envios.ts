@@ -2,6 +2,7 @@ import "server-only"
 
 import { and, count, desc, eq, getTableColumns, sql, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { anioNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { db, withTx, type Executor } from "@/server/db/client"
 import {
@@ -15,7 +16,7 @@ import {
   servientregaDetalle,
   servientregaPagos,
 } from "@/server/db/schema"
-import { fromCents, periodoActual, pgErrorCode, PG_FOREIGN_KEY_VIOLATION, siguienteCodigo, toCents } from "./_shared"
+import { fromCents, paginar, periodoActual, pgErrorCode, PG_FOREIGN_KEY_VIOLATION, siguienteCodigo, toCents } from "./_shared"
 import { assertPedidoEditable, bloquearPedido, recalcularTotalPedido } from "./pedido-base"
 
 // Nombre del servicio del catálogo que representa el costo de envío en
@@ -25,7 +26,7 @@ export const SERVICIO_ENVIO = "Envío"
 // Guía interna de seguimiento (SER-YYYY-######). No es la guía real de
 // Servientrega: esa la carga el admin a mano al actualizar el envío.
 export function generarNumeroGuia(ex: Executor): Promise<string> {
-  const year = new Date().getFullYear()
+  const year = anioNegocio()
   return siguienteCodigo(ex, {
     prefix: `SER-${year}-`,
     seqName: `envio_guia_seq_${year}`,
@@ -79,14 +80,23 @@ const envioConPedido = {
   cliente_nombre: clientes.nombre,
 }
 
-export async function listarEnvios(pedidoId?: number) {
+function consultaEnvios(pedidoId?: number) {
   return db
     .select(envioConPedido)
     .from(envios)
     .innerJoin(pedidos, eq(envios.pedido_id, pedidos.id))
     .innerJoin(clientes, eq(pedidos.cliente_id, clientes.id))
     .where(pedidoId ? eq(envios.pedido_id, pedidoId) : undefined)
-    .orderBy(desc(envios.created_at))
+    .orderBy(desc(envios.created_at), desc(envios.id))
+    .$dynamic()
+}
+
+export async function listarEnvios(pedidoId?: number) {
+  return consultaEnvios(pedidoId)
+}
+
+export function paginaDeEnvios(pagina: number) {
+  return paginar(consultaEnvios(), pagina)
 }
 
 export async function obtenerEnvio(id: number) {
@@ -105,7 +115,7 @@ export async function obtenerEnvio(id: number) {
 export async function crearEnvio(user: UserPayload, input: { pedido_id: number; costo: number }) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, input.pedido_id)
-    assertPedidoEditable(user, pedido.estado, "No se pueden crear envíos para un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden crear envíos para un pedido terminado, anulado o entregado")
 
     const servicioEnvio = await buscarServicioEnvio(tx)
     if (!servicioEnvio) {
@@ -164,16 +174,16 @@ async function recalcularCuenta(ex: Executor, cuentaId: number): Promise<void> {
     .where(eq(servientregaCuenta.id, cuentaId))
 }
 
-// Agrega el envío a la cuenta del período si todavía no está en ninguna.
+// Agrega el envío a la cuenta del período si todavía no está en ninguna. El
+// UNIQUE de envio_id hace que dos despachos simultáneos no lo carguen dos veces.
 async function cargarEnvioACuenta(ex: Executor, envioId: number, monto: string, cuentaId: number): Promise<boolean> {
-  const [existente] = await ex
-    .select({ id: servientregaDetalle.id })
-    .from(servientregaDetalle)
-    .where(eq(servientregaDetalle.envio_id, envioId))
-    .limit(1)
-  if (existente) return false
+  const insertados = await ex
+    .insert(servientregaDetalle)
+    .values({ cuenta_id: cuentaId, envio_id: envioId, monto })
+    .onConflictDoNothing({ target: servientregaDetalle.envio_id })
+    .returning({ id: servientregaDetalle.id })
+  if (insertados.length === 0) return false
 
-  await ex.insert(servientregaDetalle).values({ cuenta_id: cuentaId, envio_id: envioId, monto })
   await recalcularCuenta(ex, cuentaId)
   return true
 }

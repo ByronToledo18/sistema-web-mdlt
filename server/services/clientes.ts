@@ -7,7 +7,7 @@ import { HttpError } from "@/lib/http"
 import { db } from "@/server/db/client"
 import { clientes } from "@/server/db/schema"
 import type { DatosCliente } from "@/server/validators/clientes"
-import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
+import { paginar, pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
 
 // Columnas que se devuelven al panel. Nunca hash_password ni reset_token: el
 // SELECT * anterior los mandaba al navegador.
@@ -26,7 +26,9 @@ const columnasPublicas = {
   updated_at: clientes.updated_at,
 }
 
-export async function listarClientes(filtros: { search?: string; mostrarInactivos: boolean }) {
+type FiltrosClientes = { search?: string; mostrarInactivos: boolean }
+
+function consultaClientes(filtros: FiltrosClientes) {
   const patron = `%${filtros.search ?? ""}%`
   return db
     .select(columnasPublicas)
@@ -44,7 +46,16 @@ export async function listarClientes(filtros: { search?: string; mostrarInactivo
           : undefined,
       ),
     )
-    .orderBy(desc(clientes.created_at))
+    .orderBy(desc(clientes.created_at), desc(clientes.id))
+    .$dynamic()
+}
+
+export async function listarClientes(filtros: FiltrosClientes) {
+  return consultaClientes(filtros)
+}
+
+export function paginaDeClientes(filtros: FiltrosClientes, pagina: number) {
+  return paginar(consultaClientes(filtros), pagina)
 }
 
 export async function obtenerCliente(id: number) {

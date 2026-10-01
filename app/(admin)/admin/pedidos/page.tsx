@@ -8,26 +8,28 @@ import { formatCurrency, formatDate } from "@/components/admin/format"
 import { ListFilters } from "@/components/admin/list-filters"
 import { estadoColors, estadoLabels } from "@/components/admin/pedidos/estado"
 import { NuevoPedidoDialog } from "@/components/admin/pedidos/nuevo-pedido-dialog"
+import { Paginacion } from "@/components/admin/paginacion"
 import { UrlSelectFilter } from "@/components/admin/url-select-filter"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
 import { listarClientes } from "@/server/services/clientes"
-import { listarPedidos } from "@/server/services/pedidos"
+import { paginaDePedidos } from "@/server/services/pedidos"
+import { numeroDePagina } from "@/server/validators/common"
 
 const ESTADO_OPTIONS = [
   { value: "todos", label: "Todos los estados" },
   ...Object.entries(estadoLabels).map(([value, label]) => ({ value, label })),
 ]
 
-type SearchParams = Promise<{ q?: string; estado?: string }>
+type SearchParams = Promise<{ q?: string; estado?: string; page?: string }>
 
 export default async function PedidosPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requirePermission("pedidos")
-  const { q, estado } = await searchParams
+  const { q, estado, page } = await searchParams
   const canCreate = can(user, "pedidos", "create")
 
-  const [pedidos, clientes] = await Promise.all([
-    listarPedidos({ search: q?.trim() || undefined, estado }),
+  const [{ filas: pedidos, pagina, haySiguiente }, clientes] = await Promise.all([
+    paginaDePedidos({ search: q?.trim() || undefined, estado }, numeroDePagina(page)),
     canCreate ? listarClientes({ mostrarInactivos: false }) : [],
   ])
 
@@ -94,6 +96,8 @@ export default async function PedidosPage({ searchParams }: { searchParams: Sear
             ))}
           </div>
         )}
+
+        <Paginacion pagina={pagina} haySiguiente={haySiguiente} />
       </div>
     </div>
   )

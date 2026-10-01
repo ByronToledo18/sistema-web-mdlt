@@ -1,16 +1,21 @@
 import { BackButton } from "@/components/ui/back-button"
 import { ListFilters } from "@/components/admin/list-filters"
+import { Paginacion } from "@/components/admin/paginacion"
 import { NuevoProveedorButton, ProveedoresGrid } from "@/components/admin/proveedores/proveedores-grid"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
-import { listarProveedores } from "@/server/services/proveedores"
+import { paginaDeProveedores } from "@/server/services/proveedores"
+import { numeroDePagina } from "@/server/validators/common"
 
-type SearchParams = Promise<{ q?: string; inactivos?: string }>
+type SearchParams = Promise<{ q?: string; inactivos?: string; page?: string }>
 
 export default async function ProveedoresPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requirePermission("proveedores")
-  const { q, inactivos } = await searchParams
-  const proveedores = await listarProveedores({ search: q?.trim() || undefined, mostrarInactivos: inactivos === "1" })
+  const { q, inactivos, page } = await searchParams
+  const { filas: proveedores, pagina, haySiguiente } = await paginaDeProveedores(
+    { search: q?.trim() || undefined, mostrarInactivos: inactivos === "1" },
+    numeroDePagina(page),
+  )
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -32,6 +37,8 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
         />
 
         <ProveedoresGrid proveedores={proveedores} canUpdate={can(user, "proveedores", "update")} />
+
+        <Paginacion pagina={pagina} haySiguiente={haySiguiente} />
       </div>
     </div>
   )

@@ -15,6 +15,8 @@ export function useUrlFilters() {
 
   const setFilters = (updates: Record<string, string | null | undefined>) => {
     const params = new URLSearchParams(searchParams.toString())
+    // Cambiar un filtro vuelve a la primera página.
+    if (!("page" in updates)) params.delete("page")
     for (const [key, value] of Object.entries(updates)) {
       if (value) params.set(key, value)
       else params.delete(key)

@@ -6,10 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PagoServientregaDialog } from "@/components/admin/envios/pago-servientrega-dialog"
 import { RegistrarGuiaButton } from "@/components/admin/envios/registrar-guia-button"
 import { formatCurrency, formatDate, MESES } from "@/components/admin/format"
+import { Paginacion } from "@/components/admin/paginacion"
 import { PeriodoSelector } from "@/components/admin/periodo-selector"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
-import { consolidacionServientrega, listarEnvios } from "@/server/services/envios"
+import { consolidacionServientrega, paginaDeEnvios } from "@/server/services/envios"
+import { numeroDePagina } from "@/server/validators/common"
 import { periodoQuery } from "@/server/validators/pagos"
 
 const estadoColors: Record<string, string> = {
@@ -28,16 +30,17 @@ const estadoLabels: Record<string, string> = {
   anulado: "Anulado",
 }
 
-type SearchParams = Promise<{ year?: string; month?: string }>
+type SearchParams = Promise<{ year?: string; month?: string; page?: string }>
 
 export default async function EnviosPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requirePermission("envios")
-  const parsed = periodoQuery.safeParse(await searchParams)
+  const params = await searchParams
+  const parsed = periodoQuery.safeParse(params)
   const { year, month } = parsed.success ? parsed.data : periodoQuery.parse({})
 
   const canSeeCuenta = can(user, "servientrega", "read")
-  const [envios, consolidacion] = await Promise.all([
-    listarEnvios(),
+  const [{ filas: envios, pagina, haySiguiente }, consolidacion] = await Promise.all([
+    paginaDeEnvios(numeroDePagina(params.page)),
     canSeeCuenta ? consolidacionServientrega(year, month) : null,
   ])
   const canUpdateEnvio = can(user, "envios", "update")
@@ -112,6 +115,7 @@ export default async function EnviosPage({ searchParams }: { searchParams: Searc
                     ))}
                   </div>
                 )}
+                <Paginacion pagina={pagina} haySiguiente={haySiguiente} />
               </CardContent>
             </Card>
           </TabsContent>

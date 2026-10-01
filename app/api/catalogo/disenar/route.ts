@@ -6,6 +6,7 @@ import { generarImagenDiseno } from "@/lib/gemini"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { apiError } from "@/lib/http"
 import { logger } from "@/lib/logger"
+import { contarDisenosDeHoy } from "@/server/services/disenos"
 
 const MAX_DISENOS_POR_DIA = 5
 
@@ -42,11 +43,7 @@ export async function POST(request: NextRequest) {
     // Límite diario por cliente - cada generación cuesta dinero real en la
     // API de Gemini, esto evita que una cuenta comprometida o un loop de
     // errores en el frontend genere un gasto descontrolado.
-    const hoy = await sql`
-      SELECT COUNT(*) as count FROM disenos_personalizados
-      WHERE cliente_id = ${cliente.id} AND created_at >= CURRENT_DATE
-    `
-    if (Number.parseInt(hoy[0].count) >= MAX_DISENOS_POR_DIA) {
+    if ((await contarDisenosDeHoy(cliente.id)) >= MAX_DISENOS_POR_DIA) {
       return NextResponse.json(
         { error: `Alcanzaste el límite de ${MAX_DISENOS_POR_DIA} diseños por día. Intenta de nuevo mañana.` },
         { status: 429 },

@@ -5,23 +5,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCurrency, formatDateTime, MESES } from "@/components/admin/format"
 import { ReporteCobros } from "@/components/admin/pagos/reporte-cobros"
+import { Paginacion } from "@/components/admin/paginacion"
 import { PeriodoSelector } from "@/components/admin/periodo-selector"
 import { requirePermission } from "@/server/auth/session"
-import { consolidacionMensual, mesEnDias, pagosPorRango } from "@/server/services/pagos"
+import { consolidacionMensual, mesEnDias, paginaDePagosPorRango } from "@/server/services/pagos"
+import { numeroDePagina } from "@/server/validators/common"
 import { periodoQuery } from "@/server/validators/pagos"
 
-type SearchParams = Promise<{ year?: string; month?: string }>
+type SearchParams = Promise<{ year?: string; month?: string; page?: string }>
 
 export default async function PagosPage({ searchParams }: { searchParams: SearchParams }) {
   await requirePermission("cobros")
-  const parsed = periodoQuery.safeParse(await searchParams)
+  const params = await searchParams
+  const parsed = periodoQuery.safeParse(params)
   const { year, month } = parsed.success ? parsed.data : periodoQuery.parse({})
 
   // Antes se pedía /api/pagos con start_date/end_date, pero la API ignoraba
   // esos parámetros y el detalle mostraba los cobros de todos los meses.
-  const [consolidacion, pagos] = await Promise.all([
+  const [consolidacion, { filas: pagos, pagina, haySiguiente }] = await Promise.all([
     consolidacionMensual(year, month),
-    pagosPorRango(...mesEnDias(year, month)),
+    paginaDePagosPorRango(...mesEnDias(year, month), numeroDePagina(params.page)),
   ])
 
   return (
@@ -142,6 +145,7 @@ export default async function PagosPage({ searchParams }: { searchParams: Search
                     ))}
                   </div>
                 )}
+                <Paginacion pagina={pagina} haySiguiente={haySiguiente} />
               </CardContent>
             </Card>
           </TabsContent>

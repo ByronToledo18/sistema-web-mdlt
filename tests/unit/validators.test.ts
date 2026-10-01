@@ -23,13 +23,23 @@ describe("crearPedidoCatalogoBody", () => {
 
   test.each([
     [{ ...base, items: [] }, "El pedido debe tener al menos un ítem"],
-    [{ ...base, items: [{ id: 1, tipo: "producto", cantidad: 1.5 }] }, "La cantidad de un producto debe ser un número entero"],
-    [{ ...base, items: [{ id: 1, tipo: "producto", cantidad: 0 }] }, "Ítem de pedido inválido"],
+    [{ ...base, items: [{ id: 1, tipo: "producto", cantidad: 1.5 }] }, "La cantidad debe ser un número entero mayor a 0"],
+    [{ ...base, items: [{ id: 1, tipo: "producto", cantidad: 0 }] }, "La cantidad debe ser un número entero mayor a 0"],
+    [{ ...base, items: [{ id: 1, tipo: "servicio", cantidad: 0.5 }] }, "La cantidad debe ser un número entero mayor a 0"],
+    [{ ...base, items: [{ id: 1, tipo: "servicio", cantidad: -2 }] }, "La cantidad debe ser un número entero mayor a 0"],
+    [{ ...base, items: [{ id: 1, tipo: "servicio", cantidad: "abc" }] }, "La cantidad debe ser un número entero mayor a 0"],
+    [{ ...base, items: [{ id: 1, tipo: "servicio", cantidad: null }] }, "La cantidad debe ser un número entero mayor a 0"],
+    [{ ...base, items: [{ id: 1, tipo: "servicio", cantidad: 1000 }] }, "La cantidad máxima por ítem es 999"],
     [{ ...base, cliente: { ...cliente, cedula: "  " } }, "Nombre, cédula y teléfono son requeridos"],
     [{ ...base, metodoEntrega: "envio" }, "La ciudad de envío es requerida"],
     [{ ...base, metodoEntrega: "envio", cliente: { ...cliente, direccion: "" } }, "La dirección es requerida para envío a domicilio"],
   ])("rechaza %#", (body, mensaje) => {
     expect(primerError(crearPedidoCatalogoBody, body)).toBe(mensaje)
+  })
+
+  test("acepta servicios con cantidad entera, también como string", () => {
+    const parsed = crearPedidoCatalogoBody.parse({ ...base, items: [{ id: 2, tipo: "servicio", cantidad: "3" }] })
+    expect(parsed.items[0]).toEqual({ id: 2, tipo: "servicio", cantidad: 3 })
   })
 })
 
