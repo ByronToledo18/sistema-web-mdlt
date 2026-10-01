@@ -1,14 +1,14 @@
 import "server-only"
 
 import { createHash, randomBytes } from "node:crypto"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, isNull, ne, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import type { ClientePayload } from "@/lib/jwt"
 import { hashPassword, verifyPassword } from "@/lib/password"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import { db } from "@/server/db/client"
 import { clientes } from "@/server/db/schema"
-import type { LoginInput, RegistroInput } from "@/server/validators/auth"
+import { normalizarEmail, normalizarTelefono, type LoginInput, type RegistroInput } from "@/server/validators/auth"
 import { emailIgual, type ResultadoLogin } from "./auth"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
 import { crearTicket } from "./usuarios"
@@ -63,55 +63,89 @@ export async function iniciarSesionCliente({
   }
 }
 
+// Mensaje único para cualquier registro que choque con un cliente existente
+// sin poder probar que es el mismo: no revela qué dato existe.
+export const REGISTRO_NO_VINCULABLE = "No se pudo completar el registro, contacta a la tienda"
+
 export async function registrarCliente(input: RegistroInput) {
+  // La cédula es el identificador canónico del cliente en todo el sistema
+  // (es lo que usa el checkout del catálogo público, que no requiere login).
+  // Si ya existe una fila de `clientes` con esa cédula - creada por un pedido
+  // anónimo o por el admin - se vincula en vez de crear un duplicado.
+  const [conCedula] = await db
+    .select({
+      id: clientes.id,
+      email: clientes.email,
+      telefono: clientes.telefono,
+      direccion: clientes.direccion,
+      hash_password: clientes.hash_password,
+    })
+    .from(clientes)
+    .where(eq(clientes.cedula, input.cedula))
+
+  if (conCedula?.hash_password) throw new HttpError(400, "Esta cédula ya tiene una cuenta registrada")
+
   const [conEmail] = await db
     .select({ id: clientes.id })
     .from(clientes)
-    .where(emailIgual(clientes.email, input.email))
+    .where(and(emailIgual(clientes.email, input.email), conCedula ? ne(clientes.id, conCedula.id) : undefined))
     .limit(1)
   if (conEmail) throw new HttpError(400, "Este email ya está registrado")
 
   const hash_password = await hashPassword(input.password)
-  const datos = {
-    nombre: input.nombre,
-    email: input.email,
-    telefono: input.telefono,
-    direccion: input.direccion,
-    hash_password,
-  }
-
-  // La cédula es el identificador canónico del cliente en todo el sistema
-  // (es lo que usa el checkout del catálogo público, que no requiere login).
-  // Si ya existe una fila de `clientes` con esa cédula - creada por un
-  // pedido anónimo previo - la vinculamos en vez de crear un cliente
-  // duplicado.
-  const [conCedula] = await db
-    .select({ id: clientes.id, hash_password: clientes.hash_password })
-    .from(clientes)
-    .where(eq(clientes.cedula, input.cedula))
 
   try {
     if (conCedula) {
-      if (conCedula.hash_password) throw new HttpError(400, "Esta cédula ya tiene una cuenta registrada")
+      // Conocer la cédula no basta para apropiarse del cliente (y ver su
+      // historial): el email o el teléfono enviados tienen que coincidir con
+      // los que ya tiene. Los datos de contacto existentes no se reemplazan;
+      // solo se completan los que faltan.
+      if (!coincideContacto(conCedula, input)) throw new HttpError(400, REGISTRO_NO_VINCULABLE)
       const [cliente] = await db
         .update(clientes)
-        .set({ ...datos, updated_at: sql`CURRENT_TIMESTAMP` })
-        .where(eq(clientes.id, conCedula.id))
+        .set({
+          hash_password,
+          email: conCedula.email ?? input.email,
+          telefono: conCedula.telefono ?? input.telefono,
+          direccion: conCedula.direccion ?? input.direccion,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        // Sin contraseña todavía: dos registros a la vez no vinculan dos veces.
+        .where(and(eq(clientes.id, conCedula.id), isNull(clientes.hash_password)))
         .returning({ id: clientes.id, nombre: clientes.nombre, email: clientes.email })
+      if (!cliente) throw new HttpError(400, "Esta cédula ya tiene una cuenta registrada")
       return cliente
     }
 
     const [cliente] = await db
       .insert(clientes)
-      .values({ ...datos, cedula: input.cedula, activo: true })
+      .values({
+        nombre: input.nombre,
+        cedula: input.cedula,
+        email: input.email,
+        telefono: input.telefono,
+        direccion: input.direccion,
+        hash_password,
+        activo: true,
+      })
       .returning({ id: clientes.id, nombre: clientes.nombre, email: clientes.email })
     return cliente
   } catch (error) {
     if (pgErrorCode(error) === PG_UNIQUE_VIOLATION) {
-      throw new HttpError(400, "La cédula o el email ya están registrados")
+      throw new HttpError(400, REGISTRO_NO_VINCULABLE)
     }
     throw error
   }
+}
+
+function coincideContacto(
+  existente: { email: string | null; telefono: string | null },
+  input: { email: string; telefono: string | null },
+): boolean {
+  const email = existente.email ? normalizarEmail(existente.email) : null
+  if (email && email === input.email) return true
+  const telefono = existente.telefono ? normalizarTelefono(existente.telefono) : null
+  return !!telefono && !!input.telefono && telefono === normalizarTelefono(input.telefono)
 }
 
 // Genera un enlace de reseteo de un solo uso y lo deja en un ticket de

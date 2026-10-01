@@ -8,6 +8,13 @@ import { optionalText, requiredText } from "./common"
 
 export const normalizarEmail = (email: string) => email.trim().toLowerCase()
 
+// Solo dígitos, y el prefijo internacional de Ecuador (+593 9...) se lleva a
+// la forma local (09...): "+593 99 123 4567" y "0991234567" son el mismo.
+export function normalizarTelefono(telefono: string): string {
+  const digitos = telefono.replace(/\D/g, "")
+  return digitos.startsWith("593") && digitos.length === 12 ? `0${digitos.slice(3)}` : digitos
+}
+
 const MIN_PASSWORD = 6
 // PBKDF2 acepta cualquier largo, pero no tiene sentido procesar megas.
 const MAX_PASSWORD = 256
