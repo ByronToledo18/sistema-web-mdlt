@@ -19,10 +19,14 @@ export interface LogSink {
   info?: (context: LogContext, message: string, extra?: LogExtra) => void
 }
 
-let sink: LogSink | null = null
+// El sink vive en globalThis y no en una variable del módulo: Next compila
+// instrumentation.ts (donde se registra) en una capa de webpack distinta a la de
+// las rutas, así que cada una tiene su propia copia de este módulo.
+const SINK_KEY = "__mdltLogSink"
+const store = globalThis as typeof globalThis & { [SINK_KEY]?: LogSink | null }
 
 export function setLogSink(next: LogSink | null) {
-  sink = next
+  store[SINK_KEY] = next
 }
 
 function serializeExtra(extra?: LogExtra): string {
@@ -35,7 +39,7 @@ function serializeExtra(extra?: LogExtra): string {
 }
 
 function callSink<K extends keyof LogSink>(method: K, ...args: Parameters<NonNullable<LogSink[K]>>) {
-  const fn = sink?.[method] as ((...a: unknown[]) => void) | undefined
+  const fn = store[SINK_KEY]?.[method] as ((...a: unknown[]) => void) | undefined
   if (!fn) return
   try {
     fn(...args)
