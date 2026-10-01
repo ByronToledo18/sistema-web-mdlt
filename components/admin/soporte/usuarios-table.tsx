@@ -93,7 +93,7 @@ export function UsuariosTable({ usuarios, roles, canUpdate }: UsuariosTableProps
                 <Badge variant="outline">{usuario.rol_nombre}</Badge>
               </TableCell>
               <TableCell>
-                <Badge variant={usuario.activo ? "default" : "secondary"}>{usuario.activo ? "Activo" : "Inactivo"}</Badge>
+                <Badge className="transition-[background-color,color] duration-200 ease" variant={usuario.activo ? "default" : "secondary"}>{usuario.activo ? "Activo" : "Inactivo"}</Badge>
               </TableCell>
               {canUpdate && (
                 <TableCell>

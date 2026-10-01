@@ -115,7 +115,7 @@ export function InventarioTabs({ productos, servicios, canManage }: InventarioTa
                         <CardTitle className="text-lg">{producto.nombre}</CardTitle>
                         <CardDescription>{producto.sku || "Sin SKU"}</CardDescription>
                       </div>
-                      <Badge variant={producto.activo ? "default" : "secondary"}>
+                      <Badge className="transition-[background-color,color] duration-200 ease" variant={producto.activo ? "default" : "secondary"}>
                         {producto.activo ? "Activo" : "Inactivo"}
                       </Badge>
                     </div>
@@ -199,7 +199,7 @@ export function InventarioTabs({ productos, servicios, canManage }: InventarioTa
                         <CardTitle className="text-lg">{servicio.nombre}</CardTitle>
                         <CardDescription>{servicio.unidad || "Sin unidad"}</CardDescription>
                       </div>
-                      <Badge variant={servicio.activo ? "default" : "secondary"}>
+                      <Badge className="transition-[background-color,color] duration-200 ease" variant={servicio.activo ? "default" : "secondary"}>
                         {servicio.activo ? "Activo" : "Inactivo"}
                       </Badge>
                     </div>
