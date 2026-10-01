@@ -164,7 +164,7 @@ export default function ProveedorFacturasPage() {
       setDialogOpen(false)
       resetForm()
       fetchFacturas()
-    } catch (err) {
+    } catch {
       setError("Error al crear factura")
     }
   }
@@ -193,7 +193,7 @@ export default function ProveedorFacturasPage() {
       setSelectedFactura(null)
       resetPagoForm()
       fetchFacturas()
-    } catch (err) {
+    } catch {
       setError("Error al registrar pago")
     }
   }
@@ -373,7 +373,7 @@ export default function ProveedorFacturasPage() {
                                     <SelectValue placeholder="Seleccionar producto" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="0">Sin producto</SelectItem> // Updated value to "0"
+                                    <SelectItem value="0">Sin producto</SelectItem>
                                     {productos.map((producto) => (
                                       <SelectItem key={producto.id} value={producto.id.toString()}>
                                         <div className="flex items-center gap-2">

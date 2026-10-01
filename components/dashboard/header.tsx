@@ -76,7 +76,7 @@ export function Header({ userName, userRole, onMenuClick }: HeaderProps) {
         setTickets([])
         setUnreadCount(0)
       }
-    } catch (error) {
+    } catch {
       setTickets([])
       setUnreadCount(0)
     }

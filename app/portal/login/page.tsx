@@ -12,7 +12,7 @@ import { Eye, EyeOff, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 export default function PortalLoginPage() {
-  const router = useRouter()
+  const _router = useRouter()
   const searchParams = useSearchParams()
   const registered = searchParams.get("registered")
   const passwordReset = searchParams.get("password_reset")
@@ -53,7 +53,7 @@ export default function PortalLoginPage() {
       }
 
       window.location.href = "/catalogo"
-    } catch (err) {
+    } catch {
       setError("Error de conexión")
     } finally {
       setLoading(false)

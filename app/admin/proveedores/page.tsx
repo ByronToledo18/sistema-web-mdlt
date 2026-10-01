@@ -105,7 +105,7 @@ export default function ProveedoresPage() {
       setDialogOpen(false)
       resetForm()
       fetchProveedores()
-    } catch (err) {
+    } catch {
       setError("Error al guardar proveedor")
     }
   }
@@ -144,7 +144,7 @@ export default function ProveedoresPage() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const _handleDelete = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este proveedor?")) return
 
     try {

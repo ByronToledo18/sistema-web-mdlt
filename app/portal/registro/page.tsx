@@ -67,7 +67,7 @@ export default function RegistroPage() {
 
       // Redirigir al login con mensaje de éxito
       router.push("/portal/login?registered=true")
-    } catch (err) {
+    } catch {
       setError("Error de conexión")
     } finally {
       setLoading(false)

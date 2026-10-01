@@ -167,7 +167,7 @@ export default function EnviosPage() {
     }
   }
 
-  const handleAgregarACuenta = async (envioId: number) => {
+  const _handleAgregarACuenta = async (envioId: number) => {
     try {
       const response = await fetch("/api/servientrega/consolidacion", {
         method: "POST",
@@ -221,7 +221,7 @@ export default function EnviosPage() {
       setPagoForm({ monto: "", metodo: "", referencia: "" })
       fetchConsolidacion()
       alert("Pago registrado exitosamente")
-    } catch (err) {
+    } catch {
       setError("Error al registrar pago")
     }
   }
@@ -549,7 +549,7 @@ export default function EnviosPage() {
                   <CardContent>
                     {consolidacion.detalles.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
-                        No hay envíos en este período. Agrega envíos desde la pestaña "Envíos".
+                        No hay envíos en este período. Agrega envíos desde la pestaña &quot;Envíos&quot;.
                       </div>
                     ) : (
                       <div className="space-y-2">

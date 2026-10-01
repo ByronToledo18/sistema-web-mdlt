@@ -96,6 +96,6 @@ export const ROUTE_MODULES: Record<string, Module | null> = {
 export function canAccessRoute(role: string, pathname: string): boolean {
   const route = Object.keys(ROUTE_MODULES).find((r) => pathname === r || pathname.startsWith(`${r}/`))
   if (!route) return false
-  const module = ROUTE_MODULES[route]
-  return module === null ? isRole(role) : hasPermission(role, module, "read")
+  const modulo = ROUTE_MODULES[route]
+  return modulo === null ? isRole(role) : hasPermission(role, modulo, "read")
 }

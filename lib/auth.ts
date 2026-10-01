@@ -36,7 +36,7 @@ export async function getClienteFromToken(): Promise<ClientePayload | null> {
   try {
     const verified = await jwtVerify(token.value, JWT_SECRET)
     return verified.payload.cliente as ClientePayload
-  } catch (error) {
+  } catch {
     return null
   }
 }
