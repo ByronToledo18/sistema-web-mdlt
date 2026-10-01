@@ -8,9 +8,9 @@ prueba y no se migran.
 
 | Recurso | Uso actual | Después del corte |
 |---|---|---|
-| Neon `prueba` | DATABASE_URL de `mdlt` en Production. También está conectado a `adminfront-mdlt` en todos sus entornos | Se desconecta de `mdlt`. **No se borra**: `adminfront-mdlt` lo sigue usando |
+| Neon `prueba` | `DATABASE_URL` de `mdlt` en Production. También está conectado a `adminfront-mdlt` en todos sus entornos | Se desconecta de `mdlt`. **No se borra**: `adminfront-mdlt` lo sigue usando |
 | Neon `mdlt-preview` | `mdlt` en Preview y Development | Sin cambios |
-| Neon `mdlt-prod` (nuevo) | — | `mdlt` en Production |
+| Neon `mdlt-prod` (creado el 2026-10-01, sin conectar) | — | `mdlt` en Production |
 | `JWT_SECRET` | Production: valor original (Sensitive). Preview y Development: secreto propio | Sin cambios |
 | Upstash KV (`KV_REST_API_*`) | Solo en Production | Sin cambios: el rate limiting de producción depende de esto |
 | Sentry | Todas las variables, en todos los entornos | Sin cambios |

@@ -37,7 +37,7 @@ Las tres áreas comparten la base de datos y los route handlers de `app/api/`.
 
 ## Roles de usuario (personal interno)
 
-El acceso a las páginas lo define `roleRoutes` en `middleware.ts`. Cada route handler valida además el rol con `requireAuth([...])`.
+`lib/permissions.ts` es la única fuente de verdad: define el permiso por rol × módulo × acción y `ROUTE_MODULES` (ruta → módulo). Lo usan `proxy.ts` (páginas), `withAuth` en los route handlers, `requirePermission`/`adminAction` en Server Components y Server Actions, y el sidebar.
 
 | Módulo | Administrador | Asistente | Soporte |
 |---|:-:|:-:|:-:|
@@ -51,32 +51,46 @@ El acceso a las páginas lo define `roleRoutes` en `middleware.ts`. Cada route h
 | Nómina | ✅ | — | — |
 | Soporte (usuarios, tickets, auditoría) | — (página) | — | ✅ |
 
-> Hay discrepancias conocidas entre páginas y APIs. Por ejemplo, la API `/api/pagos` acepta al asistente aunque la página no, y las APIs de soporte aceptan al administrador. `lib/permissions.ts` todavía no se usa. En la Fase 2 del plan de trabajo los permisos pasan a una única fuente de verdad.
+> Decisiones de negocio: el asistente no ve la página de Cobros, y soporte puede crear administradores.
 
 ## Seguridad
 
-- **Sesiones:** JWT HS256 firmado con `jose`, en cookies `httpOnly`, `sameSite=lax` y `secure` en producción. Duran 24 h.
-- **Contraseñas:** PBKDF2-SHA256 con 100 000 iteraciones y salt aleatorio, vía Web Crypto (`lib/auth.ts`).
-- **Middleware:** protege `/admin/*` (autenticación y rol). Las rutas `/api/*` quedan excluidas del middleware, así que **cada route handler debe validar su propia autenticación**.
+- **Sesiones:** JWT HS256 firmado con `jose` (`lib/jwt.ts`), en cookies `httpOnly`, `sameSite=lax` y `secure` en producción. Duran 24 h.
+  - Los tokens llevan audiencia (`admin` / `portal`): uno del portal no sirve en el admin ni al revés.
+  - También llevan `tv` (token_version): desactivar un usuario, cambiarle el rol o resetear su contraseña incrementa la versión y revoca sus sesiones abiertas.
+  - `JWT_SECRET` es distinto en Production y en Preview/Development.
+- **Contraseñas:** PBKDF2-SHA256 con 100 000 iteraciones y salt aleatorio, vía Web Crypto (`lib/password.ts`).
+- **Proxy (`proxy.ts`):** protege `/admin/*` (autenticación y rol). Las rutas `/api/*` quedan fuera, así que **cada route handler valida su propia autenticación** con `withAuth`/`withCliente`. Ambos verifican además `activo` y `tv` contra la base.
+- **Rate limiting** (`lib/rate-limit.ts`; Upstash en producción, memoria en desarrollo): login del admin y del portal, registro, recuperación y reseteo de contraseña, y diseño por IA.
+- **Errores:** los route handlers responden mensajes genéricos (`apiError`). El detalle va a `lib/logger.ts`, que en el servidor lo reenvía a Sentry.
+- **Upload:** valida el tipo real de la imagen por sus magic bytes y exige el permiso `productos/update`.
 - **Recuperación de contraseña (portal):** token aleatorio de 32 bytes con vencimiento de 1 h. El enlace se entrega por un ticket de soporte que se reenvía por WhatsApp, y nunca aparece en la respuesta de la API.
 - **Auditoría** (`lib/audit.ts`): registra logins (exitosos y fallidos) y acciones críticas en la base de datos. Solo la consulta el rol soporte.
 
 ## Base de datos
 
-- PostgreSQL en Neon, con conexión mediante `@neondatabase/serverless` (`lib/db.ts`).
-- Las migraciones son SQL numeradas en `scripts/` y se aplican en orden. Los scripts destructivos están en `scripts/dangerous/`.
+- PostgreSQL en Neon con Drizzle ORM (`server/db`): `db` (HTTP) para lecturas y `withTx` (Pool/WebSocket) para transacciones. El stock se descuenta de forma atómica dentro de la transacción del pedido.
+- Las migraciones están en `drizzle/` y se aplican con drizzle-kit: `0000_baseline` (schema) y `0001_datos_referencia`. Los `scripts/0xx-*.sql` son historial previo. Los scripts destructivos están en `scripts/dangerous/`.
+- Bases:
+  - `mdlt-prod`: Production.
+  - `mdlt-preview`: Preview y Development. Tiene el marcador `_entorno = 'preview'` que exigen los scripts de seed.
 - El esquema está documentado en `docs/database-schema.md`.
 - Los códigos de pedido (`TUTU-YYYY-####`) salen de una secuencia de Postgres por año, que es atómica.
 
 ## Despliegue
 
 - Un único proyecto en Vercel: los route groups separan las áreas sin necesidad de dos despliegues.
-- Si se quiere un subdominio privado para el admin (ej. `admin.elmundodelastutus.com`), se resuelve con un rewrite por host en el middleware, dentro de la misma app. No se recomienda partir el proyecto en dos aplicaciones con este tamaño.
+- Si se quiere un subdominio privado para el admin (ej. `admin.elmundodelastutus.com`), se resuelve con un rewrite por host en `proxy.ts`, dentro de la misma app.
+- El catálogo usa ISR (revalidate de 60 s) y se revalida on-demand cuando el admin edita productos o servicios.
+- Procedimiento de despliegue a producción: [`docs/deploy-produccion.md`](docs/deploy-produccion.md).
 
 ## Stack tecnológico
 
-- **Frontend:** Next.js 15 (App Router), React 19, TypeScript.
-- **Backend:** route handlers de Next.js.
+- **Frontend:** Next.js 16 (App Router, Server Components), React 19, TypeScript.
+- **Backend:** Server Actions (admin), route handlers (API pública y portal), servicios en `server/services` con Zod.
+- **ORM:** Drizzle.
+- **Observabilidad:** Sentry (`@sentry/nextjs`), conectado a `lib/logger.ts`.
+- **Tests:** Vitest + PGlite (servicios) y Playwright (e2e); CI en GitHub Actions.
 - **Base de datos:** PostgreSQL (Neon).
 - **Autenticación:** JWT (`jose`) + PBKDF2 (Web Crypto).
 - **Archivos:** Vercel Blob.

@@ -17,11 +17,11 @@ Sistema de gestión integral para el emprendimiento "El Mundo de las Tutus", esp
 
 ## Stack
 
-Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui · PostgreSQL (Neon) · Vercel Blob · Google Gemini · Vercel
+Next.js 16 (App Router, Server Components + Server Actions) · React 19 · TypeScript · Drizzle ORM + Zod · Tailwind CSS 4 + shadcn/ui · PostgreSQL (Neon) · Vercel Blob · Upstash (rate limiting) · Sentry · Google Gemini · Vercel · Vitest + Playwright
 
 ## Requisitos previos
 
-- Node.js 20+
+- Node.js 22+
 - pnpm 11 (si Corepack falla, usar `npx pnpm@11.24.0 <comando>`)
 - Base de datos PostgreSQL en Neon
 - Proyecto en Vercel (Blob y, opcionalmente, Upstash Redis)
@@ -52,7 +52,13 @@ Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui 
    | `NEXT_PUBLIC_APP_URL` | Recomendada | URL pública, usada en los enlaces de recuperación de contraseña |
    | `KV_REST_API_URL` / `KV_REST_API_TOKEN` (o `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) | En producción | Rate limiting. En desarrollo hay un respaldo en memoria |
 
-4. Ejecutar las migraciones SQL de `scripts/` en orden numérico (`001`, `002`, `003`, …) sobre la base de datos.
+4. Aplicar las migraciones de Drizzle (`drizzle/`): crean el schema completo y cargan los datos de referencia (roles, tarifas de envío y el servicio "Envío").
+
+   ```bash
+   pnpm db:migrate
+   ```
+
+   Los `scripts/0xx-*.sql` son el historial previo a Drizzle; ya están incluidos en `drizzle/0000_baseline.sql` y no se ejecutan en bases nuevas.
    > ⚠️ `scripts/dangerous/` contiene scripts que **borran datos**. No son migraciones.
 
 5. Iniciar el servidor de desarrollo:
@@ -66,10 +72,10 @@ Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui 
 No hay credenciales por defecto. Este script crea (o resetea) los usuarios internos con una contraseña aleatoria:
 
 ```bash
-node --loader ts-node/esm scripts/create-admin.ts
+pnpm db:create-admin
 ```
 
-La contraseña se imprime una sola vez en la consola. Guárdala de inmediato.
+Crea `admin@` y `soporte@`; requiere las migraciones aplicadas. Las contraseñas se imprimen una sola vez en la consola: guárdalas de inmediato. Para producción, ver [`docs/deploy-produccion.md`](docs/deploy-produccion.md).
 
 ## Scripts
 
@@ -79,26 +85,39 @@ La contraseña se imprime una sola vez en la consola. Guárdala de inmediato.
 | `pnpm build` / `pnpm start` | Build y servidor de producción |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | Verificación de tipos (`tsc --noEmit`) |
+| `pnpm test` | Tests de servicios y unitarios (Vitest + PGlite; en local, usar `--maxWorkers=1`) |
+| `pnpm test:e2e` | Flujos e2e con Playwright (ver [`docs/testing.md`](docs/testing.md)) |
+| `pnpm db:generate` / `pnpm db:migrate` | Generar / aplicar migraciones de Drizzle |
+| `pnpm db:create-admin` | Crear o resetear los usuarios internos |
+| `pnpm db:seed-test` | Datos de prueba para los e2e (solo en bases con el marcador `_entorno = 'preview'`) |
 
 ## Estructura del proyecto
 
 ```
 app/
-├── admin/            # Panel administrativo (dashboard, pedidos, clientes, inventario,
-│                     #   pagos, envíos, proveedores, nómina, soporte)
-├── api/              # Route handlers (auth, catalogo, portal y uno por módulo del admin)
-├── catalogo/         # Catálogo público + diseño por IA
-├── portal/           # Portal de clientes (login, registro, pedidos, perfil, contraseña)
-├── login/            # Login del personal interno
-└── page.tsx          # Redirección al catálogo
+├── (admin)/admin/     # Panel administrativo: Server Components + Server Actions por módulo
+├── (public)/catalogo/ # Catálogo público (ISR) + diseño por IA
+├── (portal)/portal/   # Portal de clientes (login, registro, pedidos, perfil, contraseña)
+├── api/               # Route handlers: auth, catalogo, portal, upload y reportes
+├── login/             # Login del personal interno
+└── page.tsx           # Redirección al catálogo
 components/
-├── ui/               # Componentes shadcn/ui
-├── catalog/          # Carrito, checkout, mapa
-└── dashboard/        # Header y sidebar del admin
-lib/                  # auth, db, permisos, auditoría y lógica de pedidos/pagos/envíos/nómina
-scripts/              # Migraciones SQL numeradas + utilidades (create-admin)
-docs/                 # Esquema de base de datos
-middleware.ts         # Protección de rutas /admin por rol
+├── ui/                # Componentes shadcn/ui
+├── admin/             # Formularios y diálogos cliente del admin
+├── catalog/           # Carrito, checkout, mapa
+└── dashboard/         # Header y sidebar del admin
+server/
+├── db/                # Schema de Drizzle y cliente (db + withTx)
+├── services/          # Lógica de negocio, con transacciones
+├── validators/        # Esquemas Zod
+├── auth/              # withAuth (API), sesión y adminAction (Server Actions)
+└── reportes/          # Exportes a Excel y PDF
+lib/                   # jwt, auth, password, permisos, rate limit, logger y Sentry
+drizzle/               # Migraciones (0000 baseline, 0001 datos de referencia)
+tests/ · e2e/          # Vitest (servicios y unit) y Playwright
+scripts/               # create-admin, seed-test e historial SQL previo a Drizzle
+docs/                  # Esquema, testing y despliegue
+proxy.ts               # Protección de rutas /admin por rol (antes middleware.ts)
 ```
 
 ## Roles de usuario
