@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ShoppingCart, Package, Sparkles, Plus, User, LogOut, Settings } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { CartSidebar } from "@/components/catalog/cart-sidebar"
 import { CheckoutModal } from "@/components/catalog/checkout-modal"
 import { addToCart, getCart } from "@/lib/cart"
+import { isOptimizableImage } from "@/lib/images"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -271,16 +273,20 @@ export default function CatalogoPage() {
 
           <TabsContent value="productos" className="mt-8">
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {productos.map((producto) => (
+              {productos.map((producto, index) => (
                 <Card
                   key={producto.id}
                   className="overflow-hidden group border-0 shadow-lg hover:shadow-xl transition-shadow"
                 >
                   <div className="relative h-[400px] w-full overflow-hidden bg-muted">
-                    <img
-                      src={producto.imagen_url || "/placeholder.svg?height=400&width=400&query=elegant ballet tutu"}
+                    <Image
+                      src={producto.imagen_url || "/placeholder.svg"}
                       alt={producto.nombre}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      fill
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      priority={index < 3}
+                      unoptimized={!isOptimizableImage(producto.imagen_url || "/placeholder.svg")}
+                      className="object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     {producto.stock > 0 && producto.stock <= 5 && (
                       <Badge className="absolute top-4 right-4 bg-amber-500 text-white shadow-lg">
@@ -331,10 +337,13 @@ export default function CatalogoPage() {
                 >
                   {servicio.imagen_url && (
                     <div className="relative h-[320px] w-full overflow-hidden bg-muted">
-                      <img
-                        src={servicio.imagen_url || "/placeholder.svg"}
+                      <Image
+                        src={servicio.imagen_url}
                         alt={servicio.nombre}
-                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        fill
+                        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                        unoptimized={!isOptimizableImage(servicio.imagen_url)}
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     </div>
                   )}

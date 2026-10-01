@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    unoptimized: true,
+    // Imágenes de productos, servicios y diseños IA subidas a Vercel Blob.
+    // Debe coincidir con OPTIMIZABLE_HOST en lib/images.ts.
+    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
   },
 }
 
