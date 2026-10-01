@@ -5,8 +5,9 @@ import { formatCurrency } from "@/components/admin/format"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { VentasMes } from "@/server/services/dashboard"
 
+// Las barras son ventas NETAS (sin IVA): el IVA no es ingreso de la tienda.
 const chartConfig = {
-  total: { label: "Ventas", color: "var(--chart-1)" },
+  neto: { label: "Ventas netas (sin IVA)", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 const mesCorto = new Intl.DateTimeFormat("es-EC", { month: "short", timeZone: "UTC" })
@@ -18,7 +19,7 @@ function aFecha(mes: string) {
 }
 
 export function VentasPorMesChart({ data }: { data: VentasMes[] }) {
-  if (data.every((d) => d.total === 0)) {
+  if (data.every((d) => d.neto === 0 && d.pedidos === 0)) {
     return <p className="py-16 text-center text-sm text-neutral-600">Aún no hay ventas en este período</p>
   }
 
@@ -48,7 +49,7 @@ export function VentasPorMesChart({ data }: { data: VentasMes[] }) {
             />
           }
         />
-        <Bar dataKey="total" fill="var(--color-total)" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="neto" fill="var(--color-neto)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ChartContainer>
   )

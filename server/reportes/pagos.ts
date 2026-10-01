@@ -36,7 +36,7 @@ export function reportePagos(pagos: Pago[], desde: string, hasta: string): Repor
           { key: "cliente_nombre", titulo: "Cliente", ancho: 30 },
           { key: "metodo", titulo: "Método", ancho: 16 },
           { key: "referencia", titulo: "Referencia", ancho: 20 },
-          { key: "monto", titulo: "Monto", tipo: "moneda", ancho: 13 },
+          { key: "monto", titulo: "Monto (con IVA)", tipo: "moneda", ancho: 13 },
         ],
         filas: pagos,
         totales: { cliente_nombre: `Total (${pagos.length} cobros)`, monto: total },

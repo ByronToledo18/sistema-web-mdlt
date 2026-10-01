@@ -41,9 +41,10 @@ export default async function DashboardPage() {
       trend: bajoStock > 0 ? "down" : "up",
     },
     {
+      // Neto: el IVA no es ingreso de la tienda. Con IVA es lo que se cobra.
       title: "Ventas del Mes",
-      value: `$${ventasMes.toFixed(2)}`,
-      description: "Total del mes actual, con IVA",
+      value: `$${ventasMes.neto.toFixed(2)}`,
+      description: `Netas, sin IVA · con IVA: $${ventasMes.conIva.toFixed(2)}`,
       icon: TrendingUp,
       trend: "up",
     },
@@ -136,7 +137,9 @@ export default async function DashboardPage() {
             >
               <CardHeader>
                 <CardTitle className="text-neutral-900">Ventas por Mes</CardTitle>
-                <CardDescription className="text-neutral-600">Últimos 12 meses, sin pedidos anulados</CardDescription>
+                <CardDescription className="text-neutral-600">
+                  Ventas netas (sin IVA) de los últimos 12 meses, sin pedidos anulados
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <VentasPorMesChart data={ventas} />
