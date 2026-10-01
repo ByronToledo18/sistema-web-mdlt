@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +12,6 @@ import { Eye, EyeOff, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 export default function PortalLoginPage() {
-  const _router = useRouter()
   const searchParams = useSearchParams()
   const registered = searchParams.get("registered")
   const passwordReset = searchParams.get("password_reset")
