@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test"
-import { env, loginAdmin } from "./helpers"
+import { env, expect, test, loginAdmin } from "./helpers"
 
 // Portal: recuperar contraseña → aparece el ticket en soporte.
 test("la solicitud de recuperación crea un ticket visible para soporte", async ({ page }) => {
