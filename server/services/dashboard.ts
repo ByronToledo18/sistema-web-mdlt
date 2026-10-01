@@ -1,0 +1,71 @@
+import "server-only"
+
+import { count, inArray, sql } from "drizzle-orm"
+import { db } from "@/server/db/client"
+import { clientes, pedidos, productos } from "@/server/db/schema"
+import { queryRows } from "./_shared"
+
+const STOCK_BAJO = 5
+
+export type TipoActividad = "pedido" | "pago" | "envio"
+
+export interface Actividad {
+  tipo: TipoActividad
+  id: number
+  descripcion: string
+  fecha: Date
+}
+
+// Números del dashboard y las últimas 5 acciones (pedidos, cobros, envíos).
+export async function resumenDashboard() {
+  const [pedidosActivos, clientesTotales, productosData, ventasMes, actividad] = await Promise.all([
+    db.select({ value: count() }).from(pedidos).where(inArray(pedidos.estado, ["recibido", "en_proceso"])),
+    db.select({ value: count() }).from(clientes),
+    db
+      .select({
+        total: count(),
+        bajo_stock: sql<number>`COUNT(*) FILTER (WHERE ${productos.stock} <= ${STOCK_BAJO})`.mapWith(Number),
+      })
+      .from(productos)
+      .where(sql`${productos.activo} = true`),
+    // El mes se calcula en la hora de Ecuador.
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${pedidos.total}), 0)` })
+      .from(pedidos)
+      .where(
+        sql`DATE_TRUNC('month', ${pedidos.created_at} AT TIME ZONE 'America/Guayaquil') = DATE_TRUNC('month', CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')`,
+      ),
+    queryRows<{ tipo: TipoActividad; id: number; descripcion: string; fecha: string | Date }>(
+      db,
+      sql`
+        SELECT 'pedido' AS tipo, p.id, 'Pedido #' || p.id || ' - ' || c.nombre AS descripcion, p.created_at AS fecha
+        FROM pedidos p
+        JOIN clientes c ON p.cliente_id = c.id
+        UNION ALL
+        SELECT 'pago' AS tipo, pg.id, 'Pago de $' || pg.monto || ' - Pedido #' || pg.pedido_id AS descripcion, pg.fecha AS fecha
+        FROM pagos pg
+        UNION ALL
+        SELECT 'envio' AS tipo, e.id, 'Envío ' || e.guia || ' - Pedido #' || e.pedido_id AS descripcion, e.created_at AS fecha
+        FROM envios e
+        ORDER BY fecha DESC
+        LIMIT 5
+      `,
+    ),
+  ])
+
+  return {
+    pedidosActivos: pedidosActivos[0]?.value ?? 0,
+    clientesTotales: clientesTotales[0]?.value ?? 0,
+    productos: productosData[0]?.total ?? 0,
+    bajoStock: productosData[0]?.bajo_stock ?? 0,
+    ventasMes: Number(ventasMes[0]?.total ?? 0),
+    actividad: actividad.map((a): Actividad => ({ ...a, id: Number(a.id), fecha: aFecha(a.fecha) })),
+  }
+}
+
+// En SQL crudo la fecha puede llegar como Date o como texto sin zona
+// ("2026-09-06 04:17:14.535"); las columnas timestamp guardan UTC.
+function aFecha(value: string | Date): Date {
+  if (value instanceof Date) return value
+  return new Date(`${value.replace(" ", "T")}Z`)
+}

@@ -1,56 +1,19 @@
-import { redirect } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ShoppingCart, Users, Package, TrendingUp } from "lucide-react"
-import { neon } from "@neondatabase/serverless"
-import AdminLayout from "@/components/admin-layout" // Import AdminLayout
-
-const sql = neon(process.env.DATABASE_URL!)
+import AdminLayout from "@/components/admin-layout"
+import { requireUser } from "@/server/auth/session"
+import { resumenDashboard, type TipoActividad } from "@/server/services/dashboard"
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser()
+  const user = await requireUser()
+  const resumen = await resumenDashboard()
 
-  if (!user) {
-    redirect("/login")
-  }
-
-  const [pedidosActivos, clientesTotales, productosData, ventasData, actividadReciente] = await Promise.all([
-    sql`SELECT COUNT(*) as count FROM pedidos WHERE estado IN ('recibido', 'en_proceso')`, // Updated status query to use new status names
-    sql`SELECT COUNT(*) as count FROM clientes`,
-    sql`SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE stock <= 5) as bajo_stock FROM productos WHERE activo = true`,
-    sql`SELECT COALESCE(SUM(total), 0) as total FROM pedidos WHERE DATE_TRUNC('month', created_at AT TIME ZONE 'America/Guayaquil') = DATE_TRUNC('month', CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')`,
-    sql`
-      SELECT 
-        'pedido' as tipo,
-        p.id,
-        'Pedido #' || p.id || ' - ' || c.nombre as descripcion,
-        p.created_at AT TIME ZONE 'America/Guayaquil' as fecha
-      FROM pedidos p
-      JOIN clientes c ON p.cliente_id = c.id
-      UNION ALL
-      SELECT 
-        'pago' as tipo,
-        pg.id,
-        'Pago de $' || pg.monto || ' - Pedido #' || pg.pedido_id as descripcion,
-        pg.fecha AT TIME ZONE 'America/Guayaquil' as fecha
-      FROM pagos pg
-      UNION ALL
-      SELECT 
-        'envio' as tipo,
-        e.id,
-        'Envío ' || e.guia || ' - Pedido #' || e.pedido_id as descripcion,
-        e.created_at AT TIME ZONE 'America/Guayaquil' as fecha
-      FROM envios e
-      ORDER BY fecha DESC
-      LIMIT 5
-    `,
-  ])
-
-  const pedidosCount = Number(pedidosActivos[0].count)
-  const clientesCount = Number(clientesTotales[0].count)
-  const productosCount = Number(productosData[0].count)
-  const bajoStock = Number(productosData[0].bajo_stock)
-  const ventasMes = Number(ventasData[0].total)
+  const pedidosCount = resumen.pedidosActivos
+  const clientesCount = resumen.clientesTotales
+  const productosCount = resumen.productos
+  const bajoStock = resumen.bajoStock
+  const ventasMes = resumen.ventasMes
+  const actividadReciente = resumen.actividad
 
   // Calculate month-over-month growth (simplified - you can enhance this)
   const stats = [
@@ -98,7 +61,7 @@ export default async function DashboardPage() {
     return `Hace ${diffDays} día${diffDays > 1 ? "s" : ""}`
   }
 
-  const getActivityIcon = (tipo: string) => {
+  const getActivityIcon = (tipo: TipoActividad) => {
     switch (tipo) {
       case "pedido":
         return ShoppingCart
@@ -172,7 +135,7 @@ export default async function DashboardPage() {
             <CardContent>
               <div className="space-y-4">
                 {actividadReciente.length > 0 ? (
-                  actividadReciente.map((actividad: any, index: number) => {
+                  actividadReciente.map((actividad, index) => {
                     const Icon = getActivityIcon(actividad.tipo)
                     return (
                       <div
@@ -184,7 +147,7 @@ export default async function DashboardPage() {
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-neutral-900">{actividad.descripcion}</p>
-                          <p className="text-xs text-neutral-600">{formatRelativeTime(new Date(actividad.fecha))}</p>
+                          <p className="text-xs text-neutral-600">{formatRelativeTime(actividad.fecha)}</p>
                         </div>
                       </div>
                     )
