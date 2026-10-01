@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { withErrors } from "@/server/auth/guard"
+import { tarifasDeEnvio } from "@/server/services/catalogo"
 
-export async function GET() {
-  try {
-    const tarifas = await sql`
-      SELECT id, ciudad, provincia, costo
-      FROM tarifas_envio
-      WHERE activo = true
-      ORDER BY ciudad ASC
-    `
-
-    return NextResponse.json({ tarifas })
-  } catch (error: any) {
-    console.error("[v0] Get tarifas error:", error)
-    return NextResponse.json({ error: error.message || "Error al obtener tarifas" }, { status: 500 })
-  }
-}
+// GET - Tarifas de envío activas (público, lo usa el checkout)
+export const GET = withErrors({ error: "Error al obtener tarifas" }, async () => {
+  return NextResponse.json({ tarifas: await tarifasDeEnvio() })
+})

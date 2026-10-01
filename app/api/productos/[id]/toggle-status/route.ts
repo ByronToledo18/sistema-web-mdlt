@@ -1,43 +1,27 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
-import { createAuditLog } from "@/lib/audit"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { registrarAuditoria } from "@/server/services/auditoria"
+import { alternarEstadoProducto } from "@/server/services/catalogo"
+import { idParams, parseParams } from "@/server/validators/common"
 
 // POST - Alternar estado activo/inactivo del producto
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await requireAuth(["administrador"])
-    const { id } = await params
+export const POST = withAuth<{ id: string }>(
+  { permission: { module: "productos", action: "update" }, error: "Error al cambiar estado del producto" },
+  async (_request, { params }, user) => {
+    const { id } = await parseParams(params, idParams)
+    const activo = await alternarEstadoProducto(id)
 
-    // Toggle the activo status
-    const result = await sql`
-      UPDATE productos
-      SET activo = NOT activo, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${id}
-      RETURNING *
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 })
-    }
-
-    const producto = result[0]
-
-    // Create audit log
-    await createAuditLog({
+    await registrarAuditoria({
       usuario_id: user.id,
       accion: "update",
       modulo: "productos",
-      descripcion: `Producto #${id}: estado cambiado a ${producto.activo ? "activo" : "inactivo"}`,
+      descripcion: `Producto #${id}: estado cambiado a ${activo ? "activo" : "inactivo"}`,
     })
 
     return NextResponse.json({
       success: true,
-      activo: producto.activo,
-      message: `Producto ${producto.activo ? "activado" : "desactivado"} exitosamente`,
+      activo,
+      message: `Producto ${activo ? "activado" : "desactivado"} exitosamente`,
     })
-  } catch (error: any) {
-    console.error("[v0] Toggle producto status error:", error)
-    return NextResponse.json({ error: error.message || "Error al cambiar estado del producto" }, { status: 500 })
-  }
-}
+  },
+)

@@ -67,6 +67,7 @@ export async function obtenerPedido(id: number) {
       updated_at: pedidos.updated_at,
       cliente_nombre: clientes.nombre,
       cliente_telefono: clientes.telefono,
+      cliente_cedula: clientes.cedula,
       cliente_email: clientes.email,
       cliente_direccion: clientes.direccion,
     })

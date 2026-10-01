@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { id, isoDate, optionalText, positiveMoney, requiredText } from "./common"
+import { id, isoDate, nonNegativeMoney, optionalText, positiveMoney, requiredText } from "./common"
 
 export const listarProveedoresQuery = z.object({
   search: z.string().optional(),
@@ -42,9 +42,7 @@ export const crearFacturaBody = z.object({
           producto_id: z.preprocess((v) => (v ? v : null), id("Producto").nullable()),
           descripcion: requiredText("Cada ítem necesita una descripción"),
           cantidad: positiveMoney("La cantidad debe ser mayor a 0"),
-          precio_unitario: z.coerce
-            .number({ error: "Precio inválido" })
-            .refine((n) => Number.isFinite(n) && n >= 0, "El precio no puede ser negativo"),
+          precio_unitario: nonNegativeMoney("El precio no puede ser negativo"),
         })
         .refine(
           (item) => item.producto_id === null || Number.isInteger(item.cantidad),

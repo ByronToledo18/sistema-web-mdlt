@@ -1,43 +1,27 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
-import { createAuditLog } from "@/lib/audit"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { registrarAuditoria } from "@/server/services/auditoria"
+import { alternarEstadoServicio } from "@/server/services/catalogo"
+import { idParams, parseParams } from "@/server/validators/common"
 
 // POST - Alternar estado activo/inactivo del servicio
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await requireAuth(["administrador"])
-    const { id } = await params
+export const POST = withAuth<{ id: string }>(
+  { permission: { module: "servicios", action: "update" }, error: "Error al cambiar estado del servicio" },
+  async (_request, { params }, user) => {
+    const { id } = await parseParams(params, idParams)
+    const activo = await alternarEstadoServicio(id)
 
-    // Toggle the activo status
-    const result = await sql`
-      UPDATE servicios
-      SET activo = NOT activo, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${id}
-      RETURNING *
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 })
-    }
-
-    const servicio = result[0]
-
-    // Create audit log
-    await createAuditLog({
+    await registrarAuditoria({
       usuario_id: user.id,
       accion: "update",
       modulo: "servicios",
-      descripcion: `Servicio #${id}: estado cambiado a ${servicio.activo ? "activo" : "inactivo"}`,
+      descripcion: `Servicio #${id}: estado cambiado a ${activo ? "activo" : "inactivo"}`,
     })
 
     return NextResponse.json({
       success: true,
-      activo: servicio.activo,
-      message: `Servicio ${servicio.activo ? "activado" : "desactivado"} exitosamente`,
+      activo,
+      message: `Servicio ${activo ? "activado" : "desactivado"} exitosamente`,
     })
-  } catch (error: any) {
-    console.error("[v0] Toggle servicio status error:", error)
-    return NextResponse.json({ error: error.message || "Error al cambiar estado del servicio" }, { status: 500 })
-  }
-}
+  },
+)

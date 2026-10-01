@@ -23,14 +23,17 @@ export const optionalText = z
 
 export const requiredText = (message: string) => z.string({ error: message }).trim().min(1, message)
 
-export const money = (label: string) =>
-  z.coerce.number({ error: `${label} inválido` }).refine(Number.isFinite, `${label} inválido`)
+// Número que puede llegar como number o como string de un <input>. null y ""
+// cuentan como "falta" (z.coerce los convertiría en 0), y NaN serializado por
+// JSON.stringify llega como null.
+const numberInput = (message: string) =>
+  z.preprocess((v) => (v === null || v === "" ? undefined : v), z.coerce.number({ error: message }))
 
 export const positiveMoney = (message: string) =>
-  z.coerce.number({ error: message }).refine((n) => Number.isFinite(n) && n > 0, message)
+  numberInput(message).refine((n) => Number.isFinite(n) && n > 0, message)
 
 export const nonNegativeMoney = (message: string) =>
-  z.coerce.number({ error: message }).refine((n) => Number.isFinite(n) && n >= 0, message)
+  numberInput(message).refine((n) => Number.isFinite(n) && n >= 0, message)
 
 // "YYYY-MM-DD"
 export const isoDate = (message: string) => z.string({ error: message }).regex(/^\d{4}-\d{2}-\d{2}/, message)
