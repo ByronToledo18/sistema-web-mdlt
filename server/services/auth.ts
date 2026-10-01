@@ -6,7 +6,7 @@ import type { UserPayload } from "@/lib/jwt"
 import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
 import { db } from "@/server/db/client"
 import { roles, usuarios } from "@/server/db/schema"
-import type { LoginInput } from "@/server/validators/auth"
+import { normalizarEmail, type LoginInput } from "@/server/validators/auth"
 import { registrarAuditoria } from "./auditoria"
 
 // Autenticación del panel admin. Las rutas (app/api/auth/*) validan el body,
@@ -28,9 +28,12 @@ export type ResultadoLogin<T> =
 export const CREDENCIALES_INVALIDAS = "Credenciales inválidas"
 export const LOGIN_FALLIDO = { ok: false, status: 401, error: CREDENCIALES_INVALIDAS } as const
 
-// Los emails se guardan normalizados, pero puede haber filas antiguas con
-// mayúsculas o espacios: la búsqueda compara la forma normalizada.
-export const emailIgual = (columna: Column, email: string) => sql`lower(trim(${columna})) = ${email}`
+// Búsqueda de una cuenta por email sin distinguir mayúsculas. Usa la misma
+// expresión que los índices únicos usuarios_email_lower_key y
+// clientes_email_lower_key (lower(email)), así la consulta va por el índice.
+// Los emails se guardan normalizados (trim + minúsculas; la migración 0003
+// normalizó las filas antiguas), por eso no hace falta trim en la columna.
+export const emailIgual = (columna: Column, email: string) => sql`lower(${columna}) = ${normalizarEmail(email)}`
 
 export async function iniciarSesionAdmin(
   { email, password }: LoginInput,

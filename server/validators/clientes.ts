@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { normalizarEmail } from "./auth"
 import { optionalText, requiredText } from "./common"
 
 export const listarClientesQuery = z.object({
@@ -13,7 +14,9 @@ const datosCliente = {
   nombre: requiredText("El nombre es requerido"),
   cedula: optionalText,
   telefono: optionalText,
-  email: optionalText.pipe(z.email("Email inválido").nullable()),
+  // Normalizado (trim + minúsculas) como en el registro: la unicidad y las
+  // búsquedas van por lower(email).
+  email: optionalText.pipe(z.email("Email inválido").nullable()).transform((v) => (v ? normalizarEmail(v) : v)),
   direccion: optionalText,
   notas: optionalText,
 }
