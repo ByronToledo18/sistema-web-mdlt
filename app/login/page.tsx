@@ -59,7 +59,7 @@ export default function LoginPage() {
 
       router.push(redirect)
       router.refresh()
-    } catch (err) {
+    } catch {
       setError("Error de conexión")
     } finally {
       setLoading(false)
@@ -93,7 +93,7 @@ export default function LoginPage() {
         setResetEmail("")
         setResetMessage("")
       }, 3000)
-    } catch (err) {
+    } catch {
       alert("Error al enviar la solicitud. Por favor, intenta nuevamente.")
     } finally {
       setResetLoading(false)

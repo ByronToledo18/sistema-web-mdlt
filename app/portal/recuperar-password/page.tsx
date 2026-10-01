@@ -35,7 +35,7 @@ export default function RecuperarPasswordPage() {
       }
 
       setSuccess(true)
-    } catch (err) {
+    } catch {
       setError("Error de conexión")
     } finally {
       setLoading(false)

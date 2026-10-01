@@ -96,7 +96,7 @@ export default function PerfilPage() {
 
       setSuccess("Perfil actualizado exitosamente")
       fetchCliente()
-    } catch (err) {
+    } catch {
       setError("Error de conexión")
     } finally {
       setPerfilLoading(false)
@@ -143,7 +143,7 @@ export default function PerfilPage() {
         newPassword: "",
         confirmPassword: "",
       })
-    } catch (err) {
+    } catch {
       setError("Error de conexión")
     } finally {
       setPasswordLoading(false)

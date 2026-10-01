@@ -264,7 +264,7 @@ export function PedidoItemsCard({
         {items.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>Este pedido aún no tiene items.</p>
-            <p className="text-sm mt-2">Haz clic en "Agregar Item" para comenzar.</p>
+            <p className="text-sm mt-2">Haz clic en &quot;Agregar Item&quot; para comenzar.</p>
           </div>
         ) : (
           <div className="space-y-2">

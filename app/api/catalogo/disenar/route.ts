@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET - Listar los diseños generados por el cliente autenticado
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const cliente = await getClienteFromToken()
     if (!cliente) {
