@@ -3,9 +3,15 @@ import { sql } from "@/lib/db"
 import { generateToken, verifyPassword } from "@/lib/auth"
 import { cookies } from "next/headers"
 import { createAuditLog } from "@/lib/audit"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.adminLogin)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { email, password } = await request.json()
 
     if (!email || !password) {

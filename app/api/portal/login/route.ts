@@ -2,9 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { verifyPassword, generatePortalToken } from "@/lib/auth"
 import { cookies } from "next/headers"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.portalLogin)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { email, password } = await request.json()
 
     if (!email || !password) {

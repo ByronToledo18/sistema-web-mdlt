@@ -2,9 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import crypto from "crypto"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.recuperarPassword)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { email } = await request.json()
 
     if (!email) {
