@@ -2,6 +2,7 @@ import "server-only"
 
 import { and, count, desc, eq, getTableColumns, gte, inArray, lt, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { rangoDeDias } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { db, withTx } from "@/server/db/client"
 import { clientes, pagos, pedidos } from "@/server/db/schema"
@@ -92,13 +93,10 @@ export async function eliminarPago(id: number): Promise<void> {
 
 // --- Reportes de cobros ---------------------------------------------------------------
 
-// pagos.fecha es un instante (UTC). Un rango de días del calendario de Ecuador
-// (UTC-5, sin horario de verano) va desde las 00:00 del primer día hasta antes
-// de las 00:00 del día siguiente al último: así el último día entra completo.
-// Antes se hacía new Date("YYYY-MM-DD"), que es medianoche UTC, y se perdía.
+// pagos.fecha es un instante (UTC). El rango de días del calendario de Ecuador
+// (ambos incluidos) lo calcula lib/fechas.ts.
 function rangoDias(desde: string, hasta: string) {
-  const inicio = new Date(`${desde.slice(0, 10)}T00:00:00-05:00`)
-  const fin = new Date(new Date(`${hasta.slice(0, 10)}T00:00:00-05:00`).getTime() + 24 * 60 * 60 * 1000)
+  const { inicio, fin } = rangoDeDias(desde, hasta)
   return and(gte(pagos.fecha, inicio), lt(pagos.fecha, fin))
 }
 

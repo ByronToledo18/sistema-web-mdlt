@@ -1,6 +1,7 @@
 import "server-only"
 
 import { count, inArray, sql, type SQL } from "drizzle-orm"
+import { ZONA_NEGOCIO as ZONA } from "@/lib/fechas"
 import { db } from "@/server/db/client"
 import { clientes, PEDIDO_ESTADOS, pedidos, productos } from "@/server/db/schema"
 import { queryRows } from "./_shared"
@@ -102,8 +103,6 @@ export async function pedidosPorEstado(): Promise<{ estado: EstadoPedido; cantid
   const porEstado = new Map(rows.map((r) => [r.estado, r.cantidad]))
   return PEDIDO_ESTADOS.map((estado) => ({ estado, cantidad: porEstado.get(estado) ?? 0 }))
 }
-
-const ZONA = "America/Guayaquil"
 
 // Las columnas timestamp (sin zona) guardan UTC: primero se marcan como UTC y
 // luego se pasan a la hora local de Ecuador.

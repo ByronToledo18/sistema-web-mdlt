@@ -2,6 +2,7 @@
 // tocan la BD: reciben las filas ya consultadas y devuelven el archivo.
 
 import { formatCurrency, formatDate } from "@/components/admin/format"
+import { hoyNegocio } from "@/lib/fechas"
 
 export type TipoColumna = "texto" | "numero" | "moneda" | "fecha"
 
@@ -53,6 +54,5 @@ export function textoCelda(valor: unknown, tipo: TipoColumna = "texto"): string 
 // guarda una fecha sin hora. Las columnas `date` llegan como "YYYY-MM-DD".
 export function fechaCalendario(valor: string | Date): Date {
   if (typeof valor === "string" && /^\d{4}-\d{2}-\d{2}$/.test(valor)) return new Date(`${valor}T00:00:00Z`)
-  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil" }).format(new Date(valor))
-  return new Date(`${partes}T00:00:00Z`)
+  return new Date(`${hoyNegocio(new Date(valor))}T00:00:00Z`)
 }

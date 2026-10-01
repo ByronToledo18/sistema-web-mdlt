@@ -1,6 +1,7 @@
 import "server-only"
 
 import { sql, type SQL } from "drizzle-orm"
+import { periodoNegocio } from "@/lib/fechas"
 import type { Executor } from "@/server/db/client"
 
 // --- Dinero -----------------------------------------------------------------
@@ -81,6 +82,7 @@ export async function siguienteCodigo(ex: Executor, opts: SecuenciaOptions): Pro
 
 // --- Fechas ---------------------------------------------------------------------
 
+// Período "YYYY-MM" en curso en Ecuador (ver lib/fechas.ts).
 export function periodoActual(): string {
-  return new Date().toISOString().slice(0, 7) // YYYY-MM
+  return periodoNegocio()
 }

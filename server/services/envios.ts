@@ -2,6 +2,7 @@ import "server-only"
 
 import { and, count, desc, eq, getTableColumns, sql, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { anioNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { db, withTx, type Executor } from "@/server/db/client"
 import {
@@ -25,7 +26,7 @@ export const SERVICIO_ENVIO = "Envío"
 // Guía interna de seguimiento (SER-YYYY-######). No es la guía real de
 // Servientrega: esa la carga el admin a mano al actualizar el envío.
 export function generarNumeroGuia(ex: Executor): Promise<string> {
-  const year = new Date().getFullYear()
+  const year = anioNegocio()
   return siguienteCodigo(ex, {
     prefix: `SER-${year}-`,
     seqName: `envio_guia_seq_${year}`,

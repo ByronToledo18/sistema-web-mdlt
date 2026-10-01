@@ -2,6 +2,7 @@ import "server-only"
 
 import { and, asc, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { anioNegocio, hoyNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { db, withTx, type Tx } from "@/server/db/client"
 import {
@@ -429,7 +430,7 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
       const subtotal = items.reduce((acc, item) => acc + toCents(item.subtotal), 0)
       const iva = Math.round(subtotal * IVA_RATE)
 
-      const year = new Date().getFullYear()
+      const year = anioNegocio()
       const numeroFactura = await siguienteCodigo(tx, {
         prefix: `FACT-${year}-`,
         seqName: `factura_numero_seq_${year}`,
@@ -441,6 +442,8 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
         .values({
           pedido_id: pedidoId,
           numero_factura: numeroFactura,
+          // El default CURRENT_DATE de la columna es el día de UTC.
+          fecha_emision: hoyNegocio(),
           subtotal: fromCents(subtotal),
           iva: fromCents(iva),
           total: fromCents(subtotal + iva),

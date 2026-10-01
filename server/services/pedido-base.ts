@@ -2,6 +2,7 @@ import "server-only"
 
 import { eq, sql, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
+import { anioNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { can } from "@/server/auth/guard"
 import type { Executor } from "@/server/db/client"
@@ -12,7 +13,7 @@ import { siguienteCodigo, toCents } from "./_shared"
 // pedidos.ts para no tener imports circulares).
 
 export function generarCodigoPedido(ex: Executor): Promise<string> {
-  const year = new Date().getFullYear()
+  const year = anioNegocio()
   return siguienteCodigo(ex, {
     prefix: `TUTU-${year}-`,
     seqName: `pedido_codigo_seq_tutu_${year}`,
