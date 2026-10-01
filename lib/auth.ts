@@ -2,7 +2,6 @@ import "server-only"
 
 import { eq } from "drizzle-orm"
 import { cookies } from "next/headers"
-import { HttpError } from "@/lib/http"
 import { verifyAdminToken, verifyPortalToken, type ClientePayload, type UserPayload } from "@/lib/jwt"
 import { db } from "@/server/db/client"
 import { clientes, roles, usuarios } from "@/server/db/schema"
@@ -163,22 +162,4 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     console.error("[v0] Password verification error:", error)
     return false
   }
-}
-
-// ---------------------------------------------------------------------------
-// Legacy: solo lo usa app/api/upload hasta migrarlo a withAuth.
-// ---------------------------------------------------------------------------
-
-export async function requireAuth(allowedRoles?: string[]): Promise<UserPayload> {
-  const user = await getCurrentUser()
-
-  if (!user) {
-    throw new HttpError(401, "No autenticado")
-  }
-
-  if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    throw new HttpError(403, "No autorizado")
-  }
-
-  return user
 }
