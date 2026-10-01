@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidarCatalogo } from "@/lib/catalogo-cache"
 import { withAuth } from "@/server/auth/guard"
 import { crearProducto, listarProductos } from "@/server/services/catalogo"
 import { listarCatalogoQuery, productoBody } from "@/server/validators/catalogo"
@@ -18,6 +19,8 @@ export const POST = withAuth(
   { permission: { module: "productos", action: "create" }, error: "Error al crear producto" },
   async (request) => {
     const datos = await parseBody(request, productoBody)
-    return NextResponse.json({ producto: await crearProducto(datos) }, { status: 201 })
+    const producto = await crearProducto(datos)
+    revalidarCatalogo()
+    return NextResponse.json({ producto }, { status: 201 })
   },
 )

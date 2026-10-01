@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidarCatalogo } from "@/lib/catalogo-cache"
 import { withAuth } from "@/server/auth/guard"
 import { registrarAuditoria } from "@/server/services/auditoria"
 import { alternarEstadoServicio } from "@/server/services/catalogo"
@@ -10,6 +11,7 @@ export const POST = withAuth<{ id: string }>(
   async (_request, { params }, user) => {
     const { id } = await parseParams(params, idParams)
     const activo = await alternarEstadoServicio(id)
+    revalidarCatalogo()
 
     await registrarAuditoria({
       usuario_id: user.id,

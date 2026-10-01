@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidarCatalogo } from "@/lib/catalogo-cache"
 import { withAuth } from "@/server/auth/guard"
 import { crearServicio, listarServicios } from "@/server/services/catalogo"
 import { listarCatalogoQuery, servicioBody } from "@/server/validators/catalogo"
@@ -18,6 +19,8 @@ export const POST = withAuth(
   { permission: { module: "servicios", action: "create" }, error: "Error al crear servicio" },
   async (request) => {
     const datos = await parseBody(request, servicioBody)
-    return NextResponse.json({ servicio: await crearServicio(datos) }, { status: 201 })
+    const servicio = await crearServicio(datos)
+    revalidarCatalogo()
+    return NextResponse.json({ servicio }, { status: 201 })
   },
 )

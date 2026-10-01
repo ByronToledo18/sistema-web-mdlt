@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidarCatalogo } from "@/lib/catalogo-cache"
 import { withAuth } from "@/server/auth/guard"
 import { actualizarProducto, eliminarProducto, obtenerProducto } from "@/server/services/catalogo"
 import { productoBody } from "@/server/validators/catalogo"
@@ -21,7 +22,9 @@ export const PUT = withAuth<Params>(
   async (request, { params }) => {
     const { id } = await parseParams(params, idParams)
     const datos = await parseBody(request, productoBody)
-    return NextResponse.json({ producto: await actualizarProducto(id, datos) })
+    const producto = await actualizarProducto(id, datos)
+    revalidarCatalogo()
+    return NextResponse.json({ producto })
   },
 )
 
@@ -31,6 +34,7 @@ export const DELETE = withAuth<Params>(
   async (_request, { params }) => {
     const { id } = await parseParams(params, idParams)
     await eliminarProducto(id)
+    revalidarCatalogo()
     return NextResponse.json({ success: true })
   },
 )
