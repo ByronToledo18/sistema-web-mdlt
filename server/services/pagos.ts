@@ -6,7 +6,7 @@ import { rangoDeDias } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
 import { db, withTx } from "@/server/db/client"
 import { clientes, pagos, pedidos } from "@/server/db/schema"
-import { fromCents, toCents } from "./_shared"
+import { fromCents, paginar, toCents } from "./_shared"
 import { crearEnvioAutomatico } from "./envios"
 import { assertPedidoEditable, bloquearPedido } from "./pedido-base"
 
@@ -133,7 +133,7 @@ export async function consolidacionMensual(year: number, month: number) {
 }
 
 // Cobros entre dos días del calendario de Ecuador ("YYYY-MM-DD"), ambos incluidos.
-export async function pagosPorRango(desde: string, hasta: string) {
+function consultaPagosPorRango(desde: string, hasta: string) {
   return db
     .select({
       id: pagos.id,
@@ -149,5 +149,15 @@ export async function pagosPorRango(desde: string, hasta: string) {
     .innerJoin(pedidos, eq(pagos.pedido_id, pedidos.id))
     .innerJoin(clientes, eq(pedidos.cliente_id, clientes.id))
     .where(rangoDias(desde, hasta))
-    .orderBy(desc(pagos.fecha))
+    .orderBy(desc(pagos.fecha), desc(pagos.id))
+    .$dynamic()
+}
+
+// Todos los cobros del rango (reportes).
+export async function pagosPorRango(desde: string, hasta: string) {
+  return consultaPagosPorRango(desde, hasta)
+}
+
+export function paginaDePagosPorRango(desde: string, hasta: string, pagina: number) {
+  return paginar(consultaPagosPorRango(desde, hasta), pagina)
 }

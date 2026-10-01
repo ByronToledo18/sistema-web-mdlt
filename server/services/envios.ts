@@ -16,7 +16,7 @@ import {
   servientregaDetalle,
   servientregaPagos,
 } from "@/server/db/schema"
-import { fromCents, periodoActual, pgErrorCode, PG_FOREIGN_KEY_VIOLATION, siguienteCodigo, toCents } from "./_shared"
+import { fromCents, paginar, periodoActual, pgErrorCode, PG_FOREIGN_KEY_VIOLATION, siguienteCodigo, toCents } from "./_shared"
 import { assertPedidoEditable, bloquearPedido, recalcularTotalPedido } from "./pedido-base"
 
 // Nombre del servicio del catálogo que representa el costo de envío en
@@ -80,14 +80,23 @@ const envioConPedido = {
   cliente_nombre: clientes.nombre,
 }
 
-export async function listarEnvios(pedidoId?: number) {
+function consultaEnvios(pedidoId?: number) {
   return db
     .select(envioConPedido)
     .from(envios)
     .innerJoin(pedidos, eq(envios.pedido_id, pedidos.id))
     .innerJoin(clientes, eq(pedidos.cliente_id, clientes.id))
     .where(pedidoId ? eq(envios.pedido_id, pedidoId) : undefined)
-    .orderBy(desc(envios.created_at))
+    .orderBy(desc(envios.created_at), desc(envios.id))
+    .$dynamic()
+}
+
+export async function listarEnvios(pedidoId?: number) {
+  return consultaEnvios(pedidoId)
+}
+
+export function paginaDeEnvios(pagina: number) {
+  return paginar(consultaEnvios(), pagina)
 }
 
 export async function obtenerEnvio(id: number) {

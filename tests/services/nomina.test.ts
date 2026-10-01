@@ -19,7 +19,7 @@ describe("movimientosPorRango", () => {
     expect(filas.map((f) => f.fecha)).toEqual(["2026-09-01", "2026-09-30"])
   })
 
-  test("filtra por persona y no tiene el límite de 100 del listado", async () => {
+  test("filtra por persona y no está paginado", async () => {
     for (let i = 0; i < 105; i++) await mov("2026-09-15")
     await mov("2026-09-15", "madre")
 

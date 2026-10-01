@@ -17,6 +17,7 @@ import {
 import type { AgregarItem, CrearPedidoCatalogo, EditarItem } from "@/server/validators/pedidos"
 import {
   fromCents,
+  paginar,
   pgErrorCode,
   PG_FOREIGN_KEY_VIOLATION,
   PG_UNIQUE_VIOLATION,
@@ -39,7 +40,9 @@ const IVA_RATE = 0.15 // mismo porcentaje que las facturas de proveedores
 
 // --- Lecturas ---------------------------------------------------------------------
 
-export async function listarPedidos(filtros: { estado?: string; cliente_id?: number; search?: string }) {
+type FiltrosPedidos = { estado?: string; cliente_id?: number; search?: string }
+
+function consultaPedidos(filtros: FiltrosPedidos) {
   return db
     .select({
       ...getTableColumns(pedidos),
@@ -57,7 +60,12 @@ export async function listarPedidos(filtros: { estado?: string; cliente_id?: num
           : undefined,
       ),
     )
-    .orderBy(desc(pedidos.created_at))
+    .orderBy(desc(pedidos.created_at), desc(pedidos.id))
+    .$dynamic()
+}
+
+export function paginaDePedidos(filtros: FiltrosPedidos, pagina: number) {
+  return paginar(consultaPedidos(filtros), pagina)
 }
 
 export async function obtenerPedido(id: number) {

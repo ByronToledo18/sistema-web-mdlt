@@ -1,6 +1,7 @@
 import "server-only"
 
 import { sql, type SQL } from "drizzle-orm"
+import type { PgSelect } from "drizzle-orm/pg-core"
 import { periodoNegocio } from "@/lib/fechas"
 import type { Executor } from "@/server/db/client"
 
@@ -78,6 +79,28 @@ export async function siguienteCodigo(ex: Executor, opts: SecuenciaOptions): Pro
 
   const [next] = await queryRows<{ siguiente: string }>(ex, sql`SELECT nextval(${opts.seqName}::regclass) AS siguiente`)
   return `${opts.prefix}${Number(next.siguiente).toString().padStart(opts.padding, "0")}`
+}
+
+// --- Paginación -----------------------------------------------------------------
+// Los listados del admin se paginan con limit/offset. Se pide una fila de más
+// para saber si hay página siguiente sin un COUNT(*) aparte. La consulta debe
+// venir con .$dynamic() y con un orden estable (desempate por id).
+
+export const TAMANO_PAGINA = 25
+
+export interface Pagina<T> {
+  filas: T[]
+  pagina: number
+  haySiguiente: boolean
+}
+
+export async function paginar<Q extends PgSelect>(
+  consulta: Q,
+  pagina: number,
+  tamano = TAMANO_PAGINA,
+): Promise<Pagina<Awaited<Q>[number]>> {
+  const filas: Awaited<Q>[number][] = await consulta.limit(tamano + 1).offset((pagina - 1) * tamano)
+  return { filas: filas.slice(0, tamano), pagina, haySiguiente: filas.length > tamano }
 }
 
 // --- Fechas ---------------------------------------------------------------------

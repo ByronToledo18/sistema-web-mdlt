@@ -7,10 +7,12 @@ import { EliminarMovimientoButton } from "@/components/admin/nomina/eliminar-mov
 import { personaTipoLabels } from "@/components/admin/nomina/personas"
 import { RegistrarMovimientoDialog } from "@/components/admin/nomina/registrar-movimiento-dialog"
 import { ReporteNominaDialog } from "@/components/admin/nomina/reporte-nomina-dialog"
+import { Paginacion } from "@/components/admin/paginacion"
 import { UrlSelectFilter } from "@/components/admin/url-select-filter"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
-import { consolidadoPorPersona, listarMovimientos } from "@/server/services/nomina"
+import { consolidadoPorPersona, paginaDeMovimientos } from "@/server/services/nomina"
+import { numeroDePagina } from "@/server/validators/common"
 
 const tipoColors: Record<string, string> = {
   pago: "bg-green-500",
@@ -23,14 +25,14 @@ const PERSONA_OPTIONS = [
   ...Object.entries(personaTipoLabels).map(([value, label]) => ({ value, label })),
 ]
 
-type SearchParams = Promise<{ persona?: string }>
+type SearchParams = Promise<{ persona?: string; page?: string }>
 
 export default async function NominaPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requirePermission("nomina")
-  const { persona } = await searchParams
+  const { persona, page } = await searchParams
 
-  const [movimientos, consolidado] = await Promise.all([
-    listarMovimientos({ persona_tipo: persona }),
+  const [{ filas: movimientos, pagina, haySiguiente }, consolidado] = await Promise.all([
+    paginaDeMovimientos({ persona_tipo: persona }, numeroDePagina(page)),
     consolidadoPorPersona(),
   ])
   const canDelete = can(user, "nomina", "delete")
@@ -113,6 +115,7 @@ export default async function NominaPage({ searchParams }: { searchParams: Searc
                 ))}
               </div>
             )}
+            <Paginacion pagina={pagina} haySiguiente={haySiguiente} />
           </CardContent>
         </Card>
       </div>

@@ -5,7 +5,7 @@ import { HttpError } from "@/lib/http"
 import { db } from "@/server/db/client"
 import { nominaMov, pedidos } from "@/server/db/schema"
 import type { FiltrosNomina, RegistrarMovimiento } from "@/server/validators/nomina"
-import { money, pgErrorCode, PG_FOREIGN_KEY_VIOLATION } from "./_shared"
+import { money, paginar, pgErrorCode, PG_FOREIGN_KEY_VIOLATION } from "./_shared"
 
 // No hay tabla de personas: persona_tipo es la categoría (madre,
 // costurera_externa, emprendedora, otro) y el nombre va en `concepto`.
@@ -39,7 +39,7 @@ export async function obtenerMovimiento(id: number) {
   return movimiento
 }
 
-export async function listarMovimientos(filtros: FiltrosNomina) {
+function consultaMovimientos(filtros: FiltrosNomina) {
   return db
     .select({ ...getTableColumns(nominaMov), pedido_codigo: pedidos.codigo })
     .from(nominaMov)
@@ -53,11 +53,15 @@ export async function listarMovimientos(filtros: FiltrosNomina) {
       ),
     )
     .orderBy(desc(nominaMov.fecha), desc(nominaMov.id))
-    .limit(100)
+    .$dynamic()
+}
+
+export function paginaDeMovimientos(filtros: FiltrosNomina, pagina: number) {
+  return paginar(consultaMovimientos(filtros), pagina)
 }
 
 // Todos los movimientos de un rango (fecha es `date`: ambos días incluidos),
-// sin el límite de listarMovimientos. Para los reportes.
+// sin paginar. Para los reportes.
 export async function movimientosPorRango(fecha_desde: string, fecha_hasta: string, persona_tipo?: string) {
   return db
     .select({ ...getTableColumns(nominaMov), pedido_codigo: pedidos.codigo })
