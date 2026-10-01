@@ -14,7 +14,7 @@ import { cambiarRolBody, crearUsuarioBody, resetPasswordBody } from "@/server/va
 
 const usuarioId = id("Usuario")
 
-// Cada cambio de usuarios queda en la auditoría, igual que en /api/soporte.
+// Cada cambio de usuarios queda en la auditoría.
 export async function crearUsuarioAction(input: unknown) {
   return adminAction({ permission: { module: "usuarios", action: "create" }, error: "Error al crear usuario" }, async (user) => {
     const usuario = await crearUsuario(crearUsuarioBody.parse(input))
