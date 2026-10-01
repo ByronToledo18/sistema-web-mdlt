@@ -2,6 +2,7 @@ import ExcelJS from "exceljs"
 import { PDFDocument } from "pdf-lib"
 import { describe, expect, test } from "vitest"
 import { reporteExcel } from "@/server/reportes/excel"
+import { reportePagos } from "@/server/reportes/pagos"
 import { reportePdf } from "@/server/reportes/pdf"
 import { fechaCalendario, seccion, type Reporte } from "@/server/reportes/tipos"
 
@@ -102,5 +103,30 @@ describe("reportePdf", () => {
     const raras = [{ id: 1, fecha: "2026-09-01", cliente: `Tutú 🎀 ${"muy largo ".repeat(40)}`, monto: "1.00" }]
     const buffer = await reportePdf(reporte(raras))
     expect(buffer.subarray(0, 5).toString()).toBe("%PDF-")
+  })
+})
+
+describe("reportePagos", () => {
+  const base = { pedido_id: 1, pedido_codigo: "P-1", cliente_nombre: "Ana", referencia: null }
+
+  test("totaliza y agrupa por método", () => {
+    const reporte = reportePagos(
+      [
+        { ...base, id: 1, monto: "10.00", metodo: "efectivo", fecha: new Date("2026-09-02T15:00:00Z") },
+        { ...base, id: 2, monto: "25.50", metodo: "transferencia", fecha: new Date("2026-09-03T15:00:00Z") },
+        { ...base, id: 3, monto: "5.00", metodo: null, fecha: new Date("2026-09-04T15:00:00Z") },
+        { ...base, id: 4, monto: "4.50", metodo: "efectivo", fecha: new Date("2026-09-05T15:00:00Z") },
+      ],
+      "2026-09-01",
+      "2026-09-30",
+    )
+    // Los días del rango no se corren al anterior por la zona horaria.
+    expect(reporte.subtitulo).toMatch(/^Del 1 .* al 30 /)
+    expect(reporte.secciones[0].totales).toMatchObject({ monto: 45 })
+    expect(reporte.secciones[1].filas).toEqual([
+      { metodo: "transferencia", cantidad: 1, total: 25.5 },
+      { metodo: "efectivo", cantidad: 2, total: 14.5 },
+      { metodo: "Sin especificar", cantidad: 1, total: 5 },
+    ])
   })
 })

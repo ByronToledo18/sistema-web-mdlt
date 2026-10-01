@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { withAuth } from "@/server/auth/guard"
+import { reportePagos } from "@/server/reportes/pagos"
+import { descargaReporte } from "@/server/reportes/respuesta"
 import { pagosPorRango } from "@/server/services/pagos"
 import { parseQuery } from "@/server/validators/common"
 import { reporteQuery } from "@/server/validators/pagos"
@@ -10,13 +12,17 @@ function csvCell(value: unknown): string {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
-// GET - Generar reporte de pagos (JSON o CSV)
+// GET - Generar reporte de pagos (JSON, CSV, Excel o PDF)
 export const GET = withAuth(
   { permission: { module: "cobros", action: "read" }, error: "Error al generar reporte" },
   async (request) => {
     const { start_date, end_date, format } = parseQuery(request, reporteQuery)
     const pagos = await pagosPorRango(start_date, end_date)
     const total = pagos.reduce((sum, pago) => sum + Number.parseFloat(pago.monto), 0)
+
+    if (format === "xlsx" || format === "pdf") {
+      return descargaReporte(reportePagos(pagos, start_date, end_date), format, `reporte-cobros-${start_date}-${end_date}`)
+    }
 
     if (format === "csv") {
       const headers = ["ID", "Fecha", "Pedido", "Cliente", "Monto", "Método", "Referencia"]

@@ -33,7 +33,7 @@ export const reporteQuery = z
   .object({
     start_date: isoDate("Fechas de inicio y fin son requeridas"),
     end_date: isoDate("Fechas de inicio y fin son requeridas"),
-    format: z.enum(["json", "csv"]).default("json"),
+    format: z.enum(["json", "csv", "xlsx", "pdf"]).default("json"),
   })
   .refine((q) => new Date(q.start_date) <= new Date(q.end_date), "La fecha de inicio debe ser menor a la fecha de fin")
 
