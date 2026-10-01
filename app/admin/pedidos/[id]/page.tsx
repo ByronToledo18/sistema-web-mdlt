@@ -326,12 +326,6 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
     }
 
     try {
-      console.log("[v0] Submitting item:", {
-        pedidoId: params.id,
-        itemForm,
-        editingItem: editingItem?.id,
-      })
-
       const url = editingItem ? `/api/pedidos/${params.id}/items/${editingItem.id}` : `/api/pedidos/${params.id}/items`
       const method = editingItem ? "PUT" : "POST"
 
@@ -342,18 +336,13 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
         precio_unitario: Number.parseFloat(itemForm.precio_unitario),
       }
 
-      console.log("[v0] Request details:", { url, method, body })
-
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
 
-      console.log("[v0] Response status:", response.status, response.statusText)
-
       const data = await response.json()
-      console.log("[v0] Response data:", data)
 
       if (!response.ok) {
         console.error("[v0] Item save failed:", data)

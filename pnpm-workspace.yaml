@@ -1,7 +1,9 @@
 allowBuilds:
-  '@google/genai': set this to true or false
-  '@tailwindcss/oxide': set this to true or false
-  bufferutil: set this to true or false
-  protobufjs: set this to true or false
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
+  # Binarios nativos necesarios para el build
+  '@tailwindcss/oxide': true
+  sharp: true
+  unrs-resolver: true
+  # Sin scripts de build relevantes (no-op u opcionales)
+  '@google/genai': false
+  bufferutil: false
+  protobufjs: false
