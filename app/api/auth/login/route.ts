@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { generateToken } from "@/lib/jwt"
-import { getClientIp, rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { getClientIp, rateLimit, rateLimitCuenta, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { setAdminSessionCookie } from "@/server/auth/cookies"
 import { withErrors } from "@/server/auth/guard"
 import { iniciarSesionAdmin } from "@/server/services/auth"
@@ -14,6 +14,11 @@ export const POST = withErrors({ error: "Error en el servidor" }, async (request
   }
 
   const input = await parseBody(request, loginBody)
+  // Además del límite por IP, uno por cuenta (email ya normalizado).
+  const porCuenta = await rateLimitCuenta(RATE_LIMITS.adminLoginCuenta, input.email)
+  if (!porCuenta.success) {
+    return rateLimitResponse(porCuenta.retryAfter)
+  }
   const resultado = await iniciarSesionAdmin(input, {
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent") ?? undefined,
