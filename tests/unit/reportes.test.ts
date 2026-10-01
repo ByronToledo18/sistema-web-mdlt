@@ -1,0 +1,106 @@
+import ExcelJS from "exceljs"
+import { PDFDocument } from "pdf-lib"
+import { describe, expect, test } from "vitest"
+import { reporteExcel } from "@/server/reportes/excel"
+import { reportePdf } from "@/server/reportes/pdf"
+import { fechaCalendario, seccion, type Reporte } from "@/server/reportes/tipos"
+
+interface Fila {
+  id: number
+  fecha: string | Date
+  cliente: string
+  monto: string
+}
+
+function reporte(filas: Fila[]): Reporte {
+  const total = filas.reduce((sum, f) => sum + Number(f.monto), 0)
+  return {
+    titulo: "Reporte de cobros",
+    subtitulo: "Del 2026-09-01 al 2026-09-30",
+    secciones: [
+      seccion<Fila>({
+        titulo: "Cobros",
+        columnas: [
+          { key: "id", titulo: "ID", tipo: "numero", ancho: 6 },
+          { key: "fecha", titulo: "Fecha", tipo: "fecha", ancho: 12 },
+          { key: "cliente", titulo: "Cliente", ancho: 30 },
+          { key: "monto", titulo: "Monto", tipo: "moneda", ancho: 12 },
+        ],
+        filas,
+        totales: { cliente: "Total", monto: total },
+      }),
+    ],
+  }
+}
+
+const filas: Fila[] = [
+  { id: 1, fecha: new Date("2026-09-01T04:30:00Z"), cliente: "María José Peñafiel", monto: "25.50" },
+  { id: 2, fecha: "2026-09-15", cliente: "Ñandú ¿Café? ¡Sí!", monto: "100.00" },
+]
+
+describe("fechaCalendario", () => {
+  test("un timestamp UTC se pasa al día de Ecuador", () => {
+    // 01/09 04:30 UTC = 31/08 23:30 en Ecuador.
+    expect(fechaCalendario(new Date("2026-09-01T04:30:00Z")).toISOString()).toBe("2026-08-31T00:00:00.000Z")
+  })
+
+  test("una columna date (YYYY-MM-DD) se queda en ese día", () => {
+    expect(fechaCalendario("2026-09-15").toISOString()).toBe("2026-09-15T00:00:00.000Z")
+  })
+})
+
+describe("reporteExcel", () => {
+  test("escribe título, encabezados, filas tipadas y totales", async () => {
+    const buffer = await reporteExcel(reporte(filas))
+
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
+    const hoja = workbook.getWorksheet("Cobros")!
+
+    expect(hoja.getCell("A1").value).toBe("Reporte de cobros")
+    expect(hoja.getRow(4).values).toEqual([undefined, "ID", "Fecha", "Cliente", "Monto"])
+    expect(hoja.getCell("A5").value).toBe(1)
+    expect((hoja.getCell("B5").value as Date).toISOString()).toBe("2026-08-31T00:00:00.000Z")
+    expect(hoja.getCell("C6").value).toBe("Ñandú ¿Café? ¡Sí!")
+    expect(hoja.getCell("D5").value).toBe(25.5)
+    expect(hoja.getCell("D5").numFmt).toBe('"$"#,##0.00')
+    expect(hoja.getCell("C7").value).toBe("Total")
+    expect(hoja.getCell("D7").value).toBe(125.5)
+  })
+
+  test("sin filas genera la hoja solo con encabezados", async () => {
+    const buffer = await reporteExcel(reporte([]))
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
+    const hoja = workbook.getWorksheet("Cobros")!
+    expect(hoja.getRow(4).getCell(1).value).toBe("ID")
+    expect(hoja.getCell("D5").value).toBe(0)
+  })
+})
+
+describe("reportePdf", () => {
+  test("genera un PDF válido con tildes y ñ", async () => {
+    const buffer = await reportePdf(reporte(filas))
+    expect(buffer.subarray(0, 5).toString()).toBe("%PDF-")
+    const pdf = await PDFDocument.load(buffer)
+    expect(pdf.getPageCount()).toBe(1)
+    expect(pdf.getTitle()).toBe("Reporte de cobros")
+  })
+
+  test("pagina cuando hay muchas filas", async () => {
+    const muchas = Array.from({ length: 200 }, (_, i) => ({
+      id: i + 1,
+      fecha: "2026-09-01",
+      cliente: `Cliente ${i + 1}`,
+      monto: "10.00",
+    }))
+    const pdf = await PDFDocument.load(await reportePdf(reporte(muchas)))
+    expect(pdf.getPageCount()).toBeGreaterThan(5)
+  })
+
+  test("no falla con caracteres fuera de WinAnsi (emojis) ni con textos largos", async () => {
+    const raras = [{ id: 1, fecha: "2026-09-01", cliente: `Tutú 🎀 ${"muy largo ".repeat(40)}`, monto: "1.00" }]
+    const buffer = await reportePdf(reporte(raras))
+    expect(buffer.subarray(0, 5).toString()).toBe("%PDF-")
+  })
+})
