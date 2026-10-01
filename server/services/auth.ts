@@ -4,6 +4,7 @@ import { and, eq, sql, type Column } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import type { UserPayload } from "@/lib/jwt"
 import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
+import { conLimiteFallos, mensajeDemasiadosIntentos, RATE_LIMITS } from "@/lib/rate-limit"
 import { db } from "@/server/db/client"
 import { roles, usuarios } from "@/server/db/schema"
 import { normalizarEmail, type LoginInput } from "@/server/validators/auth"
@@ -151,9 +152,17 @@ export async function cambiarPasswordUsuario(
     .select({ id: usuarios.id, email: usuarios.email, hash_password: usuarios.hash_password })
     .from(usuarios)
     .where(eq(usuarios.id, id))
-  if (!usuario || !(await verifyPassword(passwordActual, usuario.hash_password))) {
-    throw new HttpError(400, "La contraseña actual es incorrecta")
-  }
+  if (!usuario) throw new HttpError(400, "La contraseña actual es incorrecta")
+  // Límite de intentos con la contraseña actual incorrecta, por usuario: una
+  // sesión robada no sirve para adivinar la contraseña (y luego cambiarla).
+  const intento = await conLimiteFallos(
+    RATE_LIMITS.adminCambioPassword,
+    `usuario:${id}`,
+    () => verifyPassword(passwordActual, usuario.hash_password),
+    { fallo: (ok) => !ok },
+  )
+  if (intento.bloqueado) throw new HttpError(429, mensajeDemasiadosIntentos(intento.retryAfter))
+  if (!intento.resultado) throw new HttpError(400, "La contraseña actual es incorrecta")
   if (passwordActual === nuevaPassword) {
     throw new HttpError(400, "La nueva contraseña debe ser distinta de la actual")
   }

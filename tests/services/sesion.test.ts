@@ -7,6 +7,7 @@ import { adminAction } from "@/server/auth/action"
 import { withAuth, withCliente } from "@/server/auth/guard"
 import { requireCliente, requireUser } from "@/server/auth/session"
 import { hashPassword, verifyPassword } from "@/lib/password"
+import { RATE_LIMITS, resetearFallos } from "@/lib/rate-limit"
 import { cambiarPasswordUsuario } from "@/server/services/auth"
 import { db } from "@/server/db/client"
 import { clientes, roles, usuarios } from "@/server/db/schema"
@@ -259,6 +260,24 @@ describe("debe_cambiar_password (contraseña asignada por otra persona)", () => 
     expect(
       await adminAction({ permission: null, error: "Error", permitirCambioPendiente: true }, async () => "hecho"),
     ).toEqual({ ok: true, data: "hecho" })
+  })
+
+  test("10 intentos con la contraseña actual incorrecta bloquean el cambio (429)", { timeout: 60_000 }, async () => {
+    const u = await usuarioConMarca()
+    try {
+      for (let i = 0; i < 10; i++) {
+        await expect(cambiarPasswordUsuario(u.id, "incorrecta", "nueva-clave")).rejects.toMatchObject({ status: 400 })
+      }
+      await expect(cambiarPasswordUsuario(u.id, "asignada", "nueva-clave")).rejects.toMatchObject({
+        status: 429,
+        message: expect.stringContaining("Demasiados intentos"),
+      })
+      const [fila] = await db.select().from(usuarios).where(eq(usuarios.id, u.id))
+      expect(fila.debe_cambiar_password).toBe(true)
+    } finally {
+      // El contador en memoria es por id y los ids se repiten tras resetDb.
+      await resetearFallos(RATE_LIMITS.adminCambioPassword, `usuario:${u.id}`)
+    }
   })
 
   test("requireUser redirige a /cambiar-password", async () => {

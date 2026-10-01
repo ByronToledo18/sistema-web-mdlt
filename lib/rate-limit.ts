@@ -209,12 +209,14 @@ async function contar(key: string, opts: { limit: number; windowSec: number }): 
   return { success: hit.count <= opts.limit, retryAfter: hit.ttl }
 }
 
-export function rateLimitResponse(retryAfter: number) {
+export function mensajeDemasiadosIntentos(retryAfter: number): string {
   const minutos = Math.max(1, Math.ceil(retryAfter / 60))
+  return `Demasiados intentos. Intenta de nuevo en ${minutos} minuto${minutos === 1 ? "" : "s"}.`
+}
+
+export function rateLimitResponse(retryAfter: number) {
   return NextResponse.json(
-    {
-      error: `Demasiados intentos. Intenta de nuevo en ${minutos} minuto${minutos === 1 ? "" : "s"}.`,
-    },
+    { error: mensajeDemasiadosIntentos(retryAfter) },
     { status: 429, headers: { "Retry-After": String(retryAfter) } },
   )
 }

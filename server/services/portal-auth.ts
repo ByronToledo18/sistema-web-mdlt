@@ -5,6 +5,7 @@ import { and, eq, isNull, ne, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import type { ClientePayload } from "@/lib/jwt"
 import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
+import { conLimiteFallos, mensajeDemasiadosIntentos, RATE_LIMITS } from "@/lib/rate-limit"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import { db } from "@/server/db/client"
 import { clientes } from "@/server/db/schema"
@@ -246,9 +247,17 @@ export async function cambiarPasswordCliente(
     .where(eq(clientes.id, clienteId))
   if (!cliente) throw new HttpError(404, "Cliente no encontrado")
 
-  if (!cliente.hash_password || !(await verifyPassword(passwordActual, cliente.hash_password))) {
-    throw new HttpError(401, "La contraseña actual es incorrecta")
-  }
+  // Límite de intentos con la contraseña actual incorrecta, por cliente (ver
+  // cambiarPasswordUsuario en ./auth).
+  const hash = cliente.hash_password
+  const intento = await conLimiteFallos(
+    RATE_LIMITS.portalCambioPassword,
+    `cliente:${cliente.id}`,
+    async () => !!hash && (await verifyPassword(passwordActual, hash)),
+    { fallo: (ok) => !ok },
+  )
+  if (intento.bloqueado) throw new HttpError(429, mensajeDemasiadosIntentos(intento.retryAfter))
+  if (!intento.resultado) throw new HttpError(401, "La contraseña actual es incorrecta")
 
   const [actualizado] = await db
     .update(clientes)

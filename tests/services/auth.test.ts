@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 import { createHash } from "node:crypto"
 import { eq } from "drizzle-orm"
 import { hashPassword, verifyPassword } from "@/lib/password"
+import { RATE_LIMITS, resetearFallos } from "@/lib/rate-limit"
 import { db } from "@/server/db/client"
 import { auditoria, clientes, roles, tickets, usuarios } from "@/server/db/schema"
 import { iniciarSesionAdmin, revocarSesionUsuario } from "@/server/services/auth"
@@ -215,6 +216,36 @@ describe("cambiar la contraseña desde el portal", () => {
     const c = await crearCliente({ hash_password: await hashPassword("actual1") })
     expect(await cambiarPasswordCliente(c.id, "actual1", "nueva-clave")).toBe(1)
     expect(await verifyPassword("nueva-clave", (await filaCliente(c.id)).hash_password!)).toBe(true)
+  })
+
+  test("10 intentos con la contraseña actual incorrecta bloquean (429), también a la correcta", { timeout: 60_000 }, async () => {
+    const c = await crearCliente({ hash_password: await hashPassword("actual1") })
+    try {
+      for (let i = 0; i < 10; i++) {
+        await expect(cambiarPasswordCliente(c.id, "mala", "nueva-clave")).rejects.toMatchObject({ status: 401 })
+      }
+      await expect(cambiarPasswordCliente(c.id, "actual1", "nueva-clave")).rejects.toMatchObject({ status: 429 })
+      expect((await filaCliente(c.id)).token_version).toBe(0)
+    } finally {
+      // El contador en memoria es por id y los ids se repiten tras resetDb.
+      await resetearFallos(RATE_LIMITS.portalCambioPassword, `cliente:${c.id}`)
+    }
+  })
+
+  test("un cambio correcto resetea los fallos", { timeout: 60_000 }, async () => {
+    const c = await crearCliente({ hash_password: await hashPassword("actual1") })
+    try {
+      for (let i = 0; i < 9; i++) {
+        await expect(cambiarPasswordCliente(c.id, "mala", "x-nueva-1")).rejects.toMatchObject({ status: 401 })
+      }
+      expect(await cambiarPasswordCliente(c.id, "actual1", "nueva-clave")).toBe(1)
+      for (let i = 0; i < 9; i++) {
+        await expect(cambiarPasswordCliente(c.id, "mala", "x-nueva-2")).rejects.toMatchObject({ status: 401 })
+      }
+      expect(await cambiarPasswordCliente(c.id, "nueva-clave", "otra-clave")).toBe(2)
+    } finally {
+      await resetearFallos(RATE_LIMITS.portalCambioPassword, `cliente:${c.id}`)
+    }
   })
 })
 
