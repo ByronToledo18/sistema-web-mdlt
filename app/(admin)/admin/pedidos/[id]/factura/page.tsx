@@ -1,71 +1,25 @@
-"use client"
-
-import { useState, useEffect, use } from "react"
-import { Button } from "@/components/ui/button"
+import { notFound } from "next/navigation"
 import { BackButton } from "@/components/ui/back-button"
-import { Printer } from "lucide-react"
+import { formatCurrency, formatDate } from "@/components/admin/format"
+import { PrintButton } from "@/components/admin/print-button"
+import { HttpError } from "@/lib/http"
+import { requirePermission } from "@/server/auth/session"
+import { obtenerFactura, obtenerPedido } from "@/server/services/pedidos"
+import { idParams } from "@/server/validators/common"
 
-interface FacturaData {
-  id: number
-  numero_factura: string
-  fecha_emision: string
-  subtotal: string
-  iva: string
-  total: string
-  pedido_codigo: string
-  cliente_nombre: string
-  cliente_cedula: string | null
-}
+export default async function FacturaPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermission("pedidos")
+  const parsed = idParams.safeParse(await params)
+  if (!parsed.success) notFound()
+  const { id } = parsed.data
 
-interface PedidoItem {
-  id: number
-  descripcion: string
-  cantidad: number
-  precio_unitario: string
-  subtotal: string
-}
-
-export default function FacturaPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = use(paramsPromise)
-  const [factura, setFactura] = useState<FacturaData | null>(null)
-  const [items, setItems] = useState<PedidoItem[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchData()
-  }, [params.id])
-
-  const fetchData = async () => {
-    try {
-      const [facturaRes, pedidoRes] = await Promise.all([
-        fetch(`/api/pedidos/${params.id}/factura`),
-        fetch(`/api/pedidos/${params.id}`),
-      ])
-      const facturaData = await facturaRes.json()
-      const pedidoData = await pedidoRes.json()
-
-      if (facturaRes.ok) setFactura(facturaData.factura)
-      if (pedidoRes.ok) setItems(pedidoData.pedido.items)
-    } catch (err) {
-      console.error("[v0] Error fetching factura data:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const formatCurrency = (value: string | number) => {
-    return new Intl.NumberFormat("es-EC", { style: "currency", currency: "USD" }).format(
-      typeof value === "string" ? Number.parseFloat(value) : value,
-    )
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-EC", { year: "numeric", month: "long", day: "numeric" })
-  }
-
-  if (loading) {
-    return <div className="p-6 text-center">Cargando factura...</div>
-  }
+  const [factura, pedido] = await Promise.all([
+    obtenerFactura(id),
+    obtenerPedido(id).catch((error) => {
+      if (error instanceof HttpError && error.status === 404) notFound()
+      throw error
+    }),
+  ])
 
   if (!factura) {
     return (
@@ -79,11 +33,8 @@ export default function FacturaPage({ params: paramsPromise }: { params: Promise
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="flex items-center justify-between print:hidden">
-          <BackButton href={`/admin/pedidos/${params.id}`} label="Volver al Pedido" />
-          <Button onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" />
-            Imprimir
-          </Button>
+          <BackButton href={`/admin/pedidos/${id}`} label="Volver al Pedido" />
+          <PrintButton />
         </div>
 
         <div className="bg-white text-black rounded-lg border p-8 space-y-6 print:border-none print:shadow-none">
@@ -115,7 +66,7 @@ export default function FacturaPage({ params: paramsPromise }: { params: Promise
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {pedido.items.map((item) => (
                 <tr key={item.id} className="border-b">
                   <td className="py-2">{item.descripcion}</td>
                   <td className="py-2 text-right">{item.cantidad}</td>
