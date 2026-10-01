@@ -1,41 +1,25 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { requireAuth, hashPassword } from "@/lib/auth"
-import { sql } from "@/lib/db"
-import { createAuditLog } from "@/lib/audit"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { registrarAuditoria } from "@/server/services/auditoria"
+import { resetearPasswordUsuario } from "@/server/services/usuarios"
+import { idParams, parseBody, parseParams } from "@/server/validators/common"
+import { resetPasswordBody } from "@/server/validators/usuarios"
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await requireAuth(["soporte", "administrador"])
+// POST - Resetear la contraseña de un usuario interno
+export const POST = withAuth<{ id: string }>(
+  { permission: { module: "usuarios", action: "update" }, error: "Error al resetear contraseña" },
+  async (request, { params }, user) => {
+    const { id } = await parseParams(params, idParams)
+    const { nueva_password } = await parseBody(request, resetPasswordBody)
+    await resetearPasswordUsuario(id, nueva_password)
 
-    const { nueva_password } = await request.json()
-
-    if (!nueva_password || nueva_password.length < 6) {
-      return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 })
-    }
-
-    const hashedPassword = await hashPassword(nueva_password)
-
-    await sql`
-      UPDATE usuarios
-      SET hash_password = ${hashedPassword},
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${(await params).id}
-    `
-
-    // Registrar en auditoría
-    await createAuditLog({
+    await registrarAuditoria({
       usuario_id: user.id,
       accion: "RESET_PASSWORD",
       modulo: "usuarios",
-      descripcion: `Contraseña reseteada para usuario ID ${(await params).id}`,
+      descripcion: `Contraseña reseteada para usuario ID ${id}`,
     })
 
-    return NextResponse.json({
-      success: true,
-      message: "Contraseña actualizada correctamente",
-    })
-  } catch (error) {
-    console.error("[v0] Error resetting password:", error)
-    return NextResponse.json({ error: "Error al resetear contraseña" }, { status: 500 })
-  }
-}
+    return NextResponse.json({ success: true, message: "Contraseña actualizada correctamente" })
+  },
+)
