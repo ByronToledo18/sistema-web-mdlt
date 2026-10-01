@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { and, eq, isNull, ne, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import type { ClientePayload } from "@/lib/jwt"
-import { hashPassword, verifyPassword } from "@/lib/password"
+import { hashPassword, needsRehash, verifyPassword } from "@/lib/password"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import { db } from "@/server/db/client"
 import { clientes } from "@/server/db/schema"
@@ -54,7 +54,14 @@ export async function iniciarSesionCliente({
     return { ok: false, status: 401, error: "Credenciales inválidas" }
   }
 
-  await db.update(clientes).set({ ultimo_acceso: sql`CURRENT_TIMESTAMP` }).where(eq(clientes.id, cliente.id))
+  await db
+    .update(clientes)
+    .set({
+      ultimo_acceso: sql`CURRENT_TIMESTAMP`,
+      // Hash antiguo (100 000 iteraciones): se actualiza ahora que se conoce la contraseña.
+      ...(needsRehash(cliente.hash_password) ? { hash_password: await hashPassword(password) } : {}),
+    })
+    .where(eq(clientes.id, cliente.id))
 
   return {
     ok: true,
@@ -232,4 +239,15 @@ export async function cambiarPasswordCliente(
     .where(eq(clientes.id, cliente.id))
     .returning({ token_version: clientes.token_version })
   return actualizado.token_version
+}
+
+// Logout del portal: igual que revocarSesionUsuario (server/services/auth.ts).
+export async function revocarSesionCliente(id: number, tv: unknown): Promise<boolean> {
+  if (typeof tv !== "number") return false
+  const filas = await db
+    .update(clientes)
+    .set({ token_version: sql`${clientes.token_version} + 1` })
+    .where(and(eq(clientes.id, id), eq(clientes.token_version, tv)))
+    .returning({ id: clientes.id })
+  return filas.length > 0
 }

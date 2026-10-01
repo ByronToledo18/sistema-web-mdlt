@@ -1,8 +1,8 @@
 import "server-only"
 
-import { eq, sql, type Column } from "drizzle-orm"
+import { and, eq, sql, type Column } from "drizzle-orm"
 import type { UserPayload } from "@/lib/jwt"
-import { verifyPassword } from "@/lib/password"
+import { hashPassword, needsRehash, verifyPassword } from "@/lib/password"
 import { db } from "@/server/db/client"
 import { roles, usuarios } from "@/server/db/schema"
 import type { LoginInput } from "@/server/validators/auth"
@@ -75,6 +75,15 @@ export async function iniciarSesionAdmin(
     return { ok: false, status: 401, error: "Credenciales inválidas" }
   }
 
+  // Hash antiguo (100 000 iteraciones, sin versión): se actualiza ahora que
+  // se conoce la contraseña. No toca token_version.
+  if (needsRehash(usuario.hash_password)) {
+    await db
+      .update(usuarios)
+      .set({ hash_password: await hashPassword(password) })
+      .where(eq(usuarios.id, usuario.id))
+  }
+
   await registrarAuditoria({
     ...auditoria,
     usuario_id: usuario.id,
@@ -88,4 +97,18 @@ export async function iniciarSesionAdmin(
     sesion: { id: usuario.id, email: usuario.email, nombre: usuario.nombre, rol: usuario.rol, rol_id: usuario.rol_id },
     tokenVersion: usuario.token_version,
   }
+}
+
+// Logout: incrementa token_version, así el token deja de valer aunque
+// alguien lo haya copiado antes de que se borrara la cookie. Solo si `tv` es
+// la versión vigente (un token ya revocado no revoca nada). Cierra también
+// las demás sesiones del usuario: hay una sola token_version por cuenta.
+export async function revocarSesionUsuario(id: number, tv: unknown): Promise<boolean> {
+  if (typeof tv !== "number") return false
+  const filas = await db
+    .update(usuarios)
+    .set({ token_version: sql`${usuarios.token_version} + 1` })
+    .where(and(eq(usuarios.id, id), eq(usuarios.token_version, tv)))
+    .returning({ id: usuarios.id })
+  return filas.length > 0
 }

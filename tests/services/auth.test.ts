@@ -4,12 +4,13 @@ import { eq } from "drizzle-orm"
 import { hashPassword, verifyPassword } from "@/lib/password"
 import { db } from "@/server/db/client"
 import { auditoria, clientes, roles, tickets, usuarios } from "@/server/db/schema"
-import { iniciarSesionAdmin } from "@/server/services/auth"
+import { iniciarSesionAdmin, revocarSesionUsuario } from "@/server/services/auth"
 import {
   cambiarPasswordCliente,
   iniciarSesionCliente,
   registrarCliente,
   resetearPasswordConToken,
+  revocarSesionCliente,
   solicitarReseteoCliente,
 } from "@/server/services/portal-auth"
 import { loginBody, registroBody } from "@/server/validators/auth"
@@ -254,5 +255,57 @@ describe("registro sobre un cliente existente (misma cédula, sin contraseña)",
       message: "No se pudo completar el registro, contacta a la tienda",
     })
     expect((await filaCliente(c.id)).hash_password).toBeNull()
+  })
+})
+
+describe("re-hash de contraseñas antiguas y logout", () => {
+  // Hash del formato anterior ("salt:hash", 100 000 iteraciones).
+  async function hashAntiguo(password: string): Promise<string> {
+    const salt = crypto.getRandomValues(new Uint8Array(16))
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, [
+      "deriveBits",
+    ])
+    const params = { name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" }
+    const bits = await crypto.subtle.deriveBits(params, key, 256)
+    const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")
+    return `${hex(salt)}:${hex(new Uint8Array(bits))}`
+  }
+
+  test("login admin correcto con hash antiguo lo re-hashea sin revocar sesiones", async () => {
+    const u = await crearAdmin({ hash_password: await hashAntiguo("clave-correcta") })
+    expect((await iniciarSesionAdmin(login("ana@test.local", "clave-correcta"))).ok).toBe(true)
+
+    const [fila] = await db.select().from(usuarios).where(eq(usuarios.id, u.id))
+    expect(fila.hash_password).toMatch(/^pbkdf2-sha256\$600000\$/)
+    expect(fila.token_version).toBe(0)
+    expect(await verifyPassword("clave-correcta", fila.hash_password)).toBe(true)
+  })
+
+  test("login admin fallido no toca el hash antiguo", async () => {
+    const viejo = await hashAntiguo("clave-correcta")
+    const u = await crearAdmin({ hash_password: viejo })
+    await iniciarSesionAdmin(login("ana@test.local", "mala"))
+    const [fila] = await db.select().from(usuarios).where(eq(usuarios.id, u.id))
+    expect(fila.hash_password).toBe(viejo)
+  })
+
+  test("login del portal con hash antiguo lo re-hashea", async () => {
+    const c = await crearCliente({ email: "cli@test.local", hash_password: await hashAntiguo("secreta") })
+    expect((await iniciarSesionCliente(login("cli@test.local", "secreta"))).ok).toBe(true)
+    expect((await filaCliente(c.id)).hash_password).toMatch(/^pbkdf2-sha256\$600000\$/)
+  })
+
+  test("logout incrementa token_version solo con la versión vigente", async () => {
+    const u = await crearAdmin()
+    expect(await revocarSesionUsuario(u.id, 0)).toBe(true)
+    expect(await revocarSesionUsuario(u.id, 0)).toBe(false) // token ya revocado
+    expect(await revocarSesionUsuario(u.id, "0")).toBe(false)
+    const [fila] = await db.select().from(usuarios).where(eq(usuarios.id, u.id))
+    expect(fila.token_version).toBe(1)
+
+    const c = await crearCliente()
+    expect(await revocarSesionCliente(c.id, 0)).toBe(true)
+    expect(await revocarSesionCliente(c.id, 0)).toBe(false)
+    expect((await filaCliente(c.id)).token_version).toBe(1)
   })
 })
