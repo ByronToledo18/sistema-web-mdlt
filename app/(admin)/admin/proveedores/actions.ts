@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { revalidarCatalogo } from "@/lib/catalogo-cache"
 import { adminAction } from "@/server/auth/action"
 import {
   actualizarProveedor,
@@ -21,7 +22,7 @@ function revalidarFacturas(provId: number) {
   revalidatePath(`/admin/proveedores/${provId}/facturas`)
   revalidatePath("/admin/proveedores")
   revalidatePath("/admin/inventario")
-  revalidatePath("/catalogo")
+  revalidarCatalogo()
 }
 
 // --- Proveedores --------------------------------------------------------------------

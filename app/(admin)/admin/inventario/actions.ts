@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { revalidarCatalogo } from "@/lib/catalogo-cache"
 import { adminAction } from "@/server/auth/action"
 import {
   actualizarProducto,
@@ -18,7 +19,7 @@ import { id } from "@/server/validators/common"
 // Productos y servicios se ven en el inventario y en el catálogo público.
 function revalidarInventario() {
   revalidatePath("/admin/inventario")
-  revalidatePath("/catalogo")
+  revalidarCatalogo()
 }
 
 const productoId = id("Producto")
