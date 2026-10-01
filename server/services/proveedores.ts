@@ -157,17 +157,9 @@ export async function crearFacturaProveedor(proveedorId: number, input: CrearFac
         })
         .returning()
 
-      await tx.insert(proveedorFacturaItems).values(
-        items.map((item) => ({
-          factura_id: factura.id,
-          producto_id: item.producto_id,
-          descripcion: item.descripcion,
-          cantidad: String(item.cantidad),
-          precio_unitario: fromCents(item.precio),
-          subtotal: fromCents(item.subtotal),
-        })),
-      )
-
+      // El stock se suma antes de insertar los ítems: el RETURNING detecta un
+      // producto_id inexistente y da un 400 claro, en lugar del error de FK de
+      // proveedor_factura_items.
       for (const item of items) {
         if (item.producto_id) {
           const [actualizado] = await tx
@@ -178,6 +170,17 @@ export async function crearFacturaProveedor(proveedorId: number, input: CrearFac
           if (!actualizado) throw new HttpError(400, `Producto #${item.producto_id} no encontrado`)
         }
       }
+
+      await tx.insert(proveedorFacturaItems).values(
+        items.map((item) => ({
+          factura_id: factura.id,
+          producto_id: item.producto_id,
+          descripcion: item.descripcion,
+          cantidad: String(item.cantidad),
+          precio_unitario: fromCents(item.precio),
+          subtotal: fromCents(item.subtotal),
+        })),
+      )
 
       return factura
     })
