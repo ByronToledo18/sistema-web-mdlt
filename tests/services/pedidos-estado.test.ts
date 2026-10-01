@@ -59,6 +59,34 @@ describe("transiciones de estado", () => {
   test("pedido inexistente: 404", async () => {
     await expect(actualizarEstadoPedido(admin, 999, "en_proceso")).rejects.toMatchObject({ status: 404 })
   })
+
+  test("el asistente puede anular un pedido abierto y el stock vuelve", async () => {
+    const { pedido, producto } = await pedidoConProducto(4)
+    await expect(actualizarEstadoPedido(asistente, pedido.id, "anulado")).resolves.toMatchObject({ estado: "anulado" })
+    expect(await stockDe(producto.id)).toBe(10)
+  })
+
+  test("el asistente puede volver de en_proceso a recibido (pedido abierto)", async () => {
+    const { pedido } = await pedidoConProducto()
+    await actualizarEstadoPedido(asistente, pedido.id, "en_proceso")
+    await expect(actualizarEstadoPedido(asistente, pedido.id, "recibido")).resolves.toMatchObject({ estado: "recibido" })
+  })
+
+  test("entregado → terminado tampoco lo hace el asistente", async () => {
+    const { pedido, total } = await pedidoConProducto()
+    await pagarTodo(pedido.id, total)
+    await actualizarEstadoPedido(asistente, pedido.id, "entregado")
+    await expect(actualizarEstadoPedido(asistente, pedido.id, "terminado")).rejects.toMatchObject({ status: 403 })
+  })
+
+  test("el administrador anula un pedido terminado y el stock vuelve", async () => {
+    const { pedido, producto, total } = await pedidoConProducto(2)
+    await pagarTodo(pedido.id, total)
+    await actualizarEstadoPedido(asistente, pedido.id, "terminado")
+    await actualizarEstadoPedido(admin, pedido.id, "anulado")
+    expect(await stockDe(producto.id)).toBe(10)
+    expect(await estadoDe(pedido.id)).toBe("anulado")
+  })
 })
 
 describe("pedidos cerrados: solo el administrador los reabre", () => {
