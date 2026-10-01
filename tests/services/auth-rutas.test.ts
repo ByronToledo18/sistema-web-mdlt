@@ -4,6 +4,7 @@ import { POST as loginAdmin } from "@/app/api/auth/login/route"
 import { POST as logoutAdmin } from "@/app/api/auth/logout/route"
 import { POST as loginPortal } from "@/app/api/portal/login/route"
 import { POST as logoutPortal } from "@/app/api/portal/logout/route"
+import { POST as registroPortal } from "@/app/api/portal/registro/route"
 import { POST as crearTicketPublico } from "@/app/api/soporte/tickets/route"
 import { getClienteFromToken, getCurrentUser } from "@/lib/auth"
 import { hashPassword } from "@/lib/password"
@@ -140,5 +141,29 @@ describe("POST público de tickets", () => {
       statuses.push(res.status)
     }
     expect(statuses).toEqual([201, 201, 201, 201, 201, 429])
+  })
+})
+
+describe("ruta de registro del portal", () => {
+  test("201 con id y nombre, sin el email; los choques responden el mismo 400 genérico", async () => {
+    await crearCliente({ cedula: "0933333333", email: "duena@test.local", telefono: "0994444444" })
+    const body = {
+      nombre: "Nueva Persona",
+      cedula: "0944444444",
+      email: "nueva@test.local",
+      telefono: "0995555555",
+      password: "secreta",
+    }
+
+    const ok = await registroPortal(post("/api/portal/registro", body), ctx)
+    expect(ok.status).toBe(201)
+    const { cliente } = await ok.json()
+    expect(Object.keys(cliente).sort()).toEqual(["id", "nombre"])
+
+    const generico = { error: "No se pudo completar el registro, contacta a la tienda" }
+    const emailRepetido = await registroPortal(post("/api/portal/registro", { ...body, cedula: "0955555555" }), ctx)
+    expect([emailRepetido.status, await emailRepetido.json()]).toEqual([400, generico])
+    const cedulaConCuenta = await registroPortal(post("/api/portal/registro", { ...body, email: "otra@test.local" }), ctx)
+    expect([cedulaConCuenta.status, await cedulaConCuenta.json()]).toEqual([400, generico])
   })
 })

@@ -134,14 +134,21 @@ describe("registro en el portal", () => {
     expect(await verifyPassword("secreta", fila.hash_password!)).toBe(true)
   })
 
-  test("rechaza un email ya registrado aunque cambie la capitalización", async () => {
-    await crearCliente({ email: "Nueva@test.local" })
-    await expect(registrarCliente(datos())).rejects.toMatchObject({ status: 400 })
+  test("devuelve solo id y nombre", async () => {
+    const cliente = await registrarCliente(datos())
+    expect(Object.keys(cliente).sort()).toEqual(["id", "nombre"])
   })
 
-  test("rechaza una cédula que ya tiene cuenta", async () => {
+  // Email ya usado y cédula con cuenta responden con el mismo mensaje: el
+  // registro no sirve para averiguar qué datos existen.
+  test("rechaza un email ya registrado aunque cambie la capitalización, con el mensaje genérico", async () => {
+    await crearCliente({ email: "Nueva@test.local" })
+    await expect(registrarCliente(datos())).rejects.toMatchObject({ status: 400, message: "No se pudo completar el registro, contacta a la tienda" })
+  })
+
+  test("rechaza una cédula que ya tiene cuenta, con el mismo mensaje genérico", async () => {
     await crearCliente({ cedula: "0911111111", email: "otra@test.local", hash_password: "x" })
-    await expect(registrarCliente(datos())).rejects.toMatchObject({ status: 400 })
+    await expect(registrarCliente(datos())).rejects.toMatchObject({ status: 400, message: "No se pudo completar el registro, contacta a la tienda" })
   })
 })
 
@@ -219,7 +226,8 @@ describe("registro sobre un cliente existente (misma cédula, sin contraseña)",
     const c = await crearCliente({ cedula: "0922222222", email: "Duena@Test.Local", telefono: "0993333333" })
     const r = await registrarCliente(registro({ email: "duena@test.local", telefono: "0990000000" }))
 
-    expect(r.id).toBe(c.id)
+    // La respuesta no expone el email guardado del cliente existente.
+    expect(r).toEqual({ id: c.id, nombre: c.nombre })
     const fila = await filaCliente(c.id)
     expect(fila.email).toBe("Duena@Test.Local")
     expect(fila.telefono).toBe("0993333333")
@@ -227,14 +235,31 @@ describe("registro sobre un cliente existente (misma cédula, sin contraseña)",
     expect(await verifyPassword("secreta", fila.hash_password!)).toBe(true)
   })
 
-  test("vincula si el teléfono coincide (normalizado) y completa el email que faltaba", async () => {
-    const c = await crearCliente({ cedula: "0922222222", email: null, telefono: "099 333 3333" })
-    await registrarCliente(registro({ email: "nuevo@test.local", telefono: "+593 99 333 3333" }))
+  test("si solo coincide el teléfono no vincula: deja un ticket para la tienda, sin la contraseña", async () => {
+    const c = await crearCliente({ cedula: "0922222222", email: "duena@test.local", telefono: "099 333 3333" })
+    await expect(
+      registrarCliente(registro({ email: "nuevo@test.local", telefono: "+593 99 333 3333", password: "clave-secreta" })),
+    ).rejects.toMatchObject({ status: 400, message: "No se pudo completar el registro, contacta a la tienda" })
 
     const fila = await filaCliente(c.id)
-    expect(fila.telefono).toBe("099 333 3333")
-    expect(fila.email).toBe("nuevo@test.local")
-    expect(fila.hash_password).not.toBeNull()
+    expect(fila.hash_password).toBeNull()
+    expect(fila.email).toBe("duena@test.local")
+
+    const lista = await db.select().from(tickets)
+    expect(lista).toHaveLength(1)
+    expect(lista[0]).toMatchObject({ tipo: "consulta", email_contacto: "nuevo@test.local" })
+    expect(lista[0].descripcion).toContain("0922222222")
+    expect(lista[0].descripcion).toContain("+593 99 333 3333")
+    expect(lista[0].descripcion).not.toContain("clave-secreta")
+  })
+
+  test("cliente existente sin email: tampoco vincula por teléfono", async () => {
+    const c = await crearCliente({ cedula: "0922222222", email: null, telefono: "0993333333" })
+    await expect(registrarCliente(registro({ email: "nuevo@test.local", telefono: "0993333333" }))).rejects.toMatchObject(
+      { status: 400, message: "No se pudo completar el registro, contacta a la tienda" },
+    )
+    expect((await filaCliente(c.id)).hash_password).toBeNull()
+    expect(await db.select().from(tickets)).toHaveLength(1)
   })
 
   test("rechaza con un mensaje genérico si ni el email ni el teléfono coinciden", async () => {
@@ -246,6 +271,8 @@ describe("registro sobre un cliente existente (misma cédula, sin contraseña)",
     const fila = await filaCliente(c.id)
     expect(fila.hash_password).toBeNull()
     expect(fila.email).toBe("duena@test.local")
+    // Sin coincidencia de teléfono no se crea ticket.
+    expect(await db.select().from(tickets)).toHaveLength(0)
   })
 
   test("rechaza si el cliente existente no tiene email ni teléfono", async () => {
