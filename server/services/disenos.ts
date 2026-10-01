@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, count, eq, gte } from "drizzle-orm"
+import { and, count, desc, eq, gte } from "drizzle-orm"
 import { hoyNegocio, inicioDelDia } from "@/lib/fechas"
 import { db } from "@/server/db/client"
 import { disenosPersonalizados } from "@/server/db/schema"
@@ -19,4 +19,20 @@ export async function contarDisenosDeHoy(clienteId: number, ahora: Date = new Da
       ),
     )
   return fila?.total ?? 0
+}
+
+export async function registrarDiseno(clienteId: number, descripcion: string, imagenUrl: string) {
+  const [diseno] = await db
+    .insert(disenosPersonalizados)
+    .values({ cliente_id: clienteId, descripcion, imagen_url: imagenUrl, estado: "generado" })
+    .returning()
+  return diseno
+}
+
+export async function listarDisenosDeCliente(clienteId: number) {
+  return db
+    .select()
+    .from(disenosPersonalizados)
+    .where(eq(disenosPersonalizados.cliente_id, clienteId))
+    .orderBy(desc(disenosPersonalizados.created_at))
 }
