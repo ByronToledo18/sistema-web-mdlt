@@ -140,9 +140,13 @@ export const clientes = pgTable(
   (t) => [
     index("idx_clientes_activo").on(t.activo),
     index("idx_clientes_cedula").on(t.cedula),
-    uniqueIndex("idx_clientes_cedula_unique").on(t.cedula).where(sql`(cedula IS NOT NULL)`),
+    uniqueIndex("idx_clientes_cedula_unique")
+      .on(t.cedula)
+      .where(sql`(cedula IS NOT NULL)`),
     index("idx_clientes_email").on(t.email),
-    uniqueIndex("idx_clientes_email_unique").on(t.email).where(sql`(email IS NOT NULL)`),
+    uniqueIndex("idx_clientes_email_unique")
+      .on(t.email)
+      .where(sql`(email IS NOT NULL)`),
     unique("clientes_cedula_key").on(t.cedula),
   ],
 )
@@ -250,7 +254,9 @@ export const pedidoFacturas = pgTable(
     id: serial("id").primaryKey(),
     pedido_id: integer("pedido_id").notNull(),
     numero_factura: varchar("numero_factura", { length: 50 }).notNull(),
-    fecha_emision: date("fecha_emision").default(sql`CURRENT_DATE`).notNull(),
+    fecha_emision: date("fecha_emision")
+      .default(sql`CURRENT_DATE`)
+      .notNull(),
     subtotal: money("subtotal").notNull(),
     iva: money("iva").notNull(),
     total: money("total").notNull(),
@@ -385,7 +391,9 @@ export const servientregaPagos = pgTable(
     monto: money("monto").notNull(),
     metodo: varchar("metodo", { length: 50 }).notNull(),
     referencia: varchar("referencia", { length: 255 }).notNull(),
-    fecha: ts("fecha").default(sql`CURRENT_TIMESTAMP`).notNull(),
+    fecha: ts("fecha")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },

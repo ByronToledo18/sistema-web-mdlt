@@ -1,25 +1,9 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { verifyToken } from "@/lib/auth"
+import { canAccessRoute } from "@/lib/permissions"
 
 const protectedRoutes = ["/admin"]
-
-const publicRoutes = ["/", "/catalogo", "/login"]
-
-const roleRoutes: Record<string, string[]> = {
-  administrador: [
-    "/admin/dashboard",
-    "/admin/pedidos",
-    "/admin/clientes",
-    "/admin/inventario",
-    "/admin/pagos",
-    "/admin/envios",
-    "/admin/proveedores",
-    "/admin/nomina",
-  ],
-  asistente: ["/admin/dashboard", "/admin/pedidos", "/admin/clientes", "/admin/inventario", "/admin/envios"],
-  soporte: ["/admin/dashboard", "/admin/soporte"],
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -47,13 +31,8 @@ export async function middleware(request: NextRequest) {
     }
 
     if (user && isProtectedRoute) {
-      const userRole = user.rol as string
-      const allowedRoutes = roleRoutes[userRole] || []
-
-      // Verificar si el usuario tiene acceso a esta ruta
-      const hasAccess = allowedRoutes.some((route) => pathname.startsWith(route))
-
-      if (!hasAccess) {
+      // Permisos por página: ROUTE_MODULES en lib/permissions.ts
+      if (!canAccessRoute(user.rol, pathname)) {
         // Redirigir a dashboard si no tiene acceso
         return NextResponse.redirect(new URL("/admin/dashboard", request.url))
       }
