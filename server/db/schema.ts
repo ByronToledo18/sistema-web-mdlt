@@ -63,6 +63,9 @@ export const usuarios = pgTable(
     email: varchar("email", { length: 100 }).notNull(),
     hash_password: varchar("hash_password", { length: 255 }).notNull(),
     activo: boolean("activo").default(true),
+    // Se incrementa al desactivar, cambiar de rol o resetear la contraseña:
+    // invalida los JWT emitidos antes (ver lib/auth.ts).
+    token_version: integer("token_version").notNull().default(0),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },
@@ -136,6 +139,8 @@ export const clientes = pgTable(
     // Columna huérfana: reemplazada por debe_cambiar_password, no se usa.
     requiere_cambio_password: boolean("requiere_cambio_password").default(false),
     debe_cambiar_password: boolean("debe_cambiar_password").default(false),
+    // Igual que usuarios.token_version, para las sesiones del portal.
+    token_version: integer("token_version").notNull().default(0),
   },
   (t) => [
     index("idx_clientes_activo").on(t.activo),

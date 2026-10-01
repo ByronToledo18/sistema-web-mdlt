@@ -2,9 +2,16 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import crypto from "crypto"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { apiError } from "@/lib/http"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.recuperarPassword)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { email } = await request.json()
 
     if (!email) {
@@ -62,8 +69,8 @@ export async function POST(request: NextRequest) {
     `
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error) {
     console.error("[v0] Password recovery error:", error)
-    return NextResponse.json({ error: error.message || "Error al procesar solicitud" }, { status: 500 })
+    return apiError(error, "Error al procesar solicitud")
   }
 }

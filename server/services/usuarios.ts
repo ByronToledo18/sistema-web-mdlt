@@ -128,7 +128,12 @@ export async function cambiarRolUsuario(id: number, rolId: number) {
     }
     await tx
       .update(usuarios)
-      .set({ rol_id: rolId, updated_at: sql`CURRENT_TIMESTAMP` })
+      .set({
+        rol_id: rolId,
+        // Un rol nuevo invalida las sesiones abiertas (el rol también se relee de la BD).
+        token_version: usuario.rol_id !== rolId ? sql`${usuarios.token_version} + 1` : undefined,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
       .where(eq(usuarios.id, id))
     return usuario
   })
@@ -141,7 +146,12 @@ export async function alternarEstadoUsuario(id: number): Promise<boolean> {
     await assertNoEsElUltimo(tx, usuario, "desactivar")
     const [actualizado] = await tx
       .update(usuarios)
-      .set({ activo: sql`NOT ${usuarios.activo}`, updated_at: sql`CURRENT_TIMESTAMP` })
+      .set({
+        activo: sql`NOT ${usuarios.activo}`,
+        // También al reactivar: una sesión de antes de desactivarlo no revive.
+        token_version: sql`${usuarios.token_version} + 1`,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
       .where(eq(usuarios.id, id))
       .returning({ activo: usuarios.activo })
     return actualizado.activo ?? false
@@ -151,7 +161,11 @@ export async function alternarEstadoUsuario(id: number): Promise<boolean> {
 export async function resetearPasswordUsuario(id: number, nuevaPassword: string): Promise<void> {
   const actualizados = await db
     .update(usuarios)
-    .set({ hash_password: await hashPassword(nuevaPassword), updated_at: sql`CURRENT_TIMESTAMP` })
+    .set({
+      hash_password: await hashPassword(nuevaPassword),
+      token_version: sql`${usuarios.token_version} + 1`,
+      updated_at: sql`CURRENT_TIMESTAMP`,
+    })
     .where(eq(usuarios.id, id))
     .returning({ id: usuarios.id })
   if (actualizados.length === 0) throw new HttpError(404, "Usuario no encontrado")

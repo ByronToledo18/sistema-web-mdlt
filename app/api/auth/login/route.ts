@@ -3,9 +3,15 @@ import { sql } from "@/lib/db"
 import { generateToken, verifyPassword } from "@/lib/auth"
 import { cookies } from "next/headers"
 import { createAuditLog } from "@/lib/audit"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.adminLogin)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { email, password } = await request.json()
 
     if (!email || !password) {
@@ -21,10 +27,11 @@ export async function POST(request: NextRequest) {
       activo: boolean
       rol_id: number
       rol_nombre: string
+      token_version: number
     }
 
     const users = await sql`
-      SELECT u.id, u.email, u.nombre, u.hash_password, u.activo, u.rol_id, r.nombre as rol_nombre
+      SELECT u.id, u.email, u.nombre, u.hash_password, u.activo, u.rol_id, u.token_version, r.nombre as rol_nombre
       FROM usuarios u
       JOIN roles r ON u.rol_id = r.id
       WHERE u.email = ${email}
@@ -77,7 +84,7 @@ export async function POST(request: NextRequest) {
       nombre: user.nombre,
       rol: user.rol_nombre,
       rol_id: user.rol_id,
-    })
+    }, user.token_version)
 
     // Establecer cookie
     const cookieStore = await cookies()

@@ -13,7 +13,7 @@ export class HttpError extends Error {
 }
 
 // Convierte un error capturado en la respuesta HTTP adecuada.
-// - HttpError (incluye los 401/403 de requireAuth): se responde con su status y mensaje.
+// - HttpError (incluye los 401/403 de withAuth/assertCan): se responde con su status y mensaje.
 // - Cualquier otro: 500 con un mensaje genérico. El detalle (mensajes de
 //   Postgres, nombres de tablas, stack) se queda en el log del servidor; el
 //   catch de cada ruta ya lo registra antes de llamar a esta función.

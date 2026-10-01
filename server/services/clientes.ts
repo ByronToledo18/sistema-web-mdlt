@@ -104,7 +104,12 @@ export async function actualizarCliente(id: number, datos: DatosCliente) {
 export async function alternarEstadoCliente(id: number): Promise<boolean> {
   const [cliente] = await db
     .update(clientes)
-    .set({ activo: sql`NOT ${clientes.activo}`, updated_at: sql`CURRENT_TIMESTAMP` })
+    .set({
+      activo: sql`NOT ${clientes.activo}`,
+      // Cierra las sesiones del portal abiertas (también al reactivar).
+      token_version: sql`${clientes.token_version} + 1`,
+      updated_at: sql`CURRENT_TIMESTAMP`,
+    })
     .where(eq(clientes.id, id))
     .returning({ activo: clientes.activo })
   if (!cliente) throw new HttpError(404, "Cliente no encontrado")

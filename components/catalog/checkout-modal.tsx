@@ -31,7 +31,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [costoEnvio, setCostoEnvio] = useState(0)
   const [ciudadEnvio, setCiudadEnvio] = useState("")
   const [isClientLoggedIn, setIsClientLoggedIn] = useState(false)
-  const [_clientData, setClientData] = useState<any>(null)
 
   const [tarifas, setTarifas] = useState<Tarifa[]>([])
   const [ciudadSearch, setCiudadSearch] = useState("")
@@ -77,7 +76,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       if (response.ok) {
         const data = await response.json()
         setIsClientLoggedIn(true)
-        setClientData(data.cliente)
         setFormData({
           ...formData,
           nombre: data.cliente.nombre || "",

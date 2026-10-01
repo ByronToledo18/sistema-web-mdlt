@@ -1,11 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { verifyPassword, JWT_SECRET } from "@/lib/auth"
-import { SignJWT } from "jose"
+import { verifyPassword, generatePortalToken } from "@/lib/auth"
 import { cookies } from "next/headers"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { apiError } from "@/lib/http"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.portalLogin)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { email, password } = await request.json()
 
     if (!email || !password) {
@@ -14,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar cliente
     const result = await sql`
-      SELECT id, nombre, email, hash_password, activo
+      SELECT id, nombre, email, hash_password, activo, token_version
       FROM clientes
       WHERE email = ${email}
     `
@@ -49,11 +55,10 @@ export async function POST(request: NextRequest) {
     await sql`UPDATE clientes SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ${cliente.id}`
 
     // Generar token JWT
-    const token = await new SignJWT({ cliente: { id: cliente.id, email: cliente.email, nombre: cliente.nombre } })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("7d")
-      .sign(JWT_SECRET)
+    const token = await generatePortalToken(
+      { id: cliente.id, email: cliente.email, nombre: cliente.nombre },
+      cliente.token_version,
+    )
 
     // Establecer cookie
     const cookieStore = await cookies()
@@ -72,8 +77,8 @@ export async function POST(request: NextRequest) {
         email: cliente.email,
       },
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error("[v0] Login error:", error)
-    return NextResponse.json({ error: error.message || "Error al iniciar sesión" }, { status: 500 })
+    return apiError(error, "Error al iniciar sesión")
   }
 }
