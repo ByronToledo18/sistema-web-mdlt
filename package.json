@@ -11,6 +11,7 @@
     "db:generate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:baseline": "node --env-file=.env.local scripts/drizzle-baseline.mjs",
+    "db:create-admin": "node --env-file=.env.local --import tsx scripts/create-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
