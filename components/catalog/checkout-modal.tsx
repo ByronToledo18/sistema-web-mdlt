@@ -10,6 +10,7 @@ import { Alert } from "@/components/ui/alert"
 import { X, Loader2, Search } from "lucide-react"
 import { useState, useEffect } from "react"
 import { getCart, clearCart } from "@/lib/cart"
+import { logger } from "@/lib/logger"
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -31,7 +32,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [costoEnvio, setCostoEnvio] = useState(0)
   const [ciudadEnvio, setCiudadEnvio] = useState("")
   const [isClientLoggedIn, setIsClientLoggedIn] = useState(false)
-  const [clientData, setClientData] = useState<any>(null)
 
   const [tarifas, setTarifas] = useState<Tarifa[]>([])
   const [ciudadSearch, setCiudadSearch] = useState("")
@@ -67,7 +67,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setTarifas(data.tarifas || [])
       }
     } catch (error) {
-      console.error("[v0] Error fetching tarifas:", error)
+      logger.error("catalogo/checkout: cargar tarifas", error)
     }
   }
 
@@ -76,24 +76,20 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       const response = await fetch("/api/portal/me")
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Client data from API:", data.cliente)
         setIsClientLoggedIn(true)
-        setClientData(data.cliente)
-        setFormData({
-          ...formData,
+        // Updater funcional: si el usuario cambió algo (p. ej. "Retiro en
+        // Tienda") mientras cargaba el perfil, no se pisa con el estado viejo.
+        setFormData((prev) => ({
+          ...prev,
           nombre: data.cliente.nombre || "",
           cedula: data.cliente.cedula || "",
           telefono: data.cliente.telefono || "",
           email: data.cliente.email || "",
           direccion: data.cliente.direccion || "",
-        })
-        console.log("[v0] Form data after setting:", {
-          cedula: data.cliente.cedula,
-          nombre: data.cliente.nombre,
-        })
+        }))
       }
     } catch (error) {
-      console.error("[v0] Error checking client auth:", error)
+      logger.error("catalogo/checkout: verificar sesión del cliente", error)
       setIsClientLoggedIn(false)
     }
   }
@@ -341,7 +337,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                       name="metodoEntrega"
                       value="envio"
                       checked={formData.metodoEntrega === "envio"}
-                      onChange={(e) => setFormData({ ...formData, metodoEntrega: "envio" })}
+                      onChange={(_e) => setFormData({ ...formData, metodoEntrega: "envio" })}
                       className="w-4 h-4 text-primary"
                     />
                     <span className="text-foreground">Envío a Domicilio</span>
@@ -352,7 +348,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                       name="metodoEntrega"
                       value="retiro"
                       checked={formData.metodoEntrega === "retiro"}
-                      onChange={(e) => {
+                      onChange={(_e) => {
                         setFormData({ ...formData, metodoEntrega: "retiro" })
                         setCostoEnvio(0)
                         setCiudadEnvio("")

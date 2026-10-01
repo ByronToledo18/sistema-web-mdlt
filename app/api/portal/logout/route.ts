@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST() {
   try {
@@ -7,8 +9,8 @@ export async function POST() {
     cookieStore.delete("portal-auth-token")
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error("[v0] Logout error:", error)
-    return NextResponse.json({ error: error.message || "Error al cerrar sesión" }, { status: 500 })
+  } catch (error) {
+    logger.error("api/portal/logout POST", error)
+    return apiError(error, "Error al cerrar sesión")
   }
 }

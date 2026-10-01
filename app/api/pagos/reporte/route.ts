@@ -1,52 +1,46 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth"
-import { obtenerPagosPorRango } from "@/lib/pagos"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { reportePagos } from "@/server/reportes/pagos"
+import { descargaReporte } from "@/server/reportes/respuesta"
+import { pagosPorRango } from "@/server/services/pagos"
+import { parseQuery } from "@/server/validators/common"
+import { reporteQuery } from "@/server/validators/pagos"
 
-// GET - Generar reporte de pagos
-export async function GET(request: NextRequest) {
-  try {
-    await requireAuth(["administrador"])
+// Escapa un valor para CSV (comas, comillas y saltos de línea).
+function csvCell(value: unknown): string {
+  const text = value == null ? "" : String(value)
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
 
-    const { searchParams } = new URL(request.url)
-    const startDateStr = searchParams.get("start_date")
-    const endDateStr = searchParams.get("end_date")
-    const format = searchParams.get("format") || "json"
+// GET - Generar reporte de pagos (JSON, CSV, Excel o PDF)
+export const GET = withAuth(
+  { permission: { module: "cobros", action: "read" }, error: "Error al generar reporte" },
+  async (request) => {
+    const { start_date, end_date, format } = parseQuery(request, reporteQuery)
+    const pagos = await pagosPorRango(start_date, end_date)
+    const total = pagos.reduce((sum, pago) => sum + Number.parseFloat(pago.monto), 0)
 
-    if (!startDateStr || !endDateStr) {
-      return NextResponse.json({ error: "Fechas de inicio y fin son requeridas" }, { status: 400 })
+    if (format === "xlsx" || format === "pdf") {
+      return descargaReporte(reportePagos(pagos, start_date, end_date), format, `reporte-cobros-${start_date}-${end_date}`)
     }
-
-    const startDate = new Date(startDateStr)
-    const endDate = new Date(endDateStr)
-
-    if (startDate > endDate) {
-      return NextResponse.json({ error: "La fecha de inicio debe ser menor a la fecha de fin" }, { status: 400 })
-    }
-
-    const pagos = await obtenerPagosPorRango(startDate, endDate)
-
-    // Calcular totales
-    const total = pagos.reduce((sum: number, pago: any) => sum + Number.parseFloat(pago.monto), 0)
 
     if (format === "csv") {
-      // Generar CSV
       const headers = ["ID", "Fecha", "Pedido", "Cliente", "Monto", "Método", "Referencia"]
-      const rows = pagos.map((pago: any) => [
+      const rows = pagos.map((pago) => [
         pago.id,
-        new Date(pago.fecha).toLocaleDateString("es-EC"),
+        pago.fecha ? new Date(pago.fecha).toLocaleDateString("es-EC") : "",
         pago.pedido_codigo,
         pago.cliente_nombre,
         pago.monto,
-        pago.metodo || "",
-        pago.referencia || "",
+        pago.metodo,
+        pago.referencia,
       ])
-
-      const csv = [headers.join(","), ...rows.map((row: any[]) => row.join(","))].join("\n")
+      const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n")
 
       return new NextResponse(csv, {
         headers: {
           "Content-Type": "text/csv",
-          "Content-Disposition": `attachment; filename="reporte-pagos-${startDateStr}-${endDateStr}.csv"`,
+          "Content-Disposition": `attachment; filename="reporte-pagos-${start_date}-${end_date}.csv"`,
         },
       })
     }
@@ -56,12 +50,9 @@ export async function GET(request: NextRequest) {
       resumen: {
         total_pagos: total,
         cantidad_pagos: pagos.length,
-        fecha_inicio: startDateStr,
-        fecha_fin: endDateStr,
+        fecha_inicio: start_date,
+        fecha_fin: end_date,
       },
     })
-  } catch (error: any) {
-    console.error("[v0] Get reporte error:", error)
-    return NextResponse.json({ error: error.message || "Error al generar reporte" }, { status: 500 })
-  }
-}
+  },
+)

@@ -1,9 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { hashPassword } from "@/lib/auth"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = await rateLimit(request, RATE_LIMITS.resetPassword)
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
+    }
+
     const { token, newPassword } = await request.json()
 
     if (!token || !newPassword) {
@@ -32,16 +40,18 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await hashPassword(newPassword)
 
-    // Un solo uso: se limpian el token y su expiración al consumirse.
+    // Un solo uso: se limpian el token y su expiración al consumirse. También
+    // se invalidan las sesiones abiertas, por si alguien más tenía acceso.
     await sql`
       UPDATE clientes
-      SET hash_password = ${hashedPassword}, reset_token = NULL, reset_token_expiry = NULL, debe_cambiar_password = false
+      SET hash_password = ${hashedPassword}, reset_token = NULL, reset_token_expiry = NULL, debe_cambiar_password = false,
+          token_version = token_version + 1
       WHERE id = ${cliente.id}
     `
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error("[v0] Reset password error:", error)
-    return NextResponse.json({ error: error.message || "Error al restablecer la contraseña" }, { status: 500 })
+  } catch (error) {
+    logger.error("api/portal/reset-password POST", error)
+    return apiError(error, "Error al restablecer la contraseña")
   }
 }

@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { X, ShoppingCart, Minus, Plus, Trash2, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getCart, removeFromCart, updateQuantity, type Cart } from "@/lib/cart"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { isOptimizableImage } from "@/lib/images"
 import { cn } from "@/lib/utils"
 
 interface CartSidebarProps {
@@ -96,9 +98,12 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
                   className="cart-item flex gap-4 p-4 border rounded-lg bg-background"
                 >
                   {item.imagen_url && (
-                    <img
-                      src={item.imagen_url || "/placeholder.svg"}
+                    <Image
+                      src={item.imagen_url}
                       alt={item.nombre}
+                      width={80}
+                      height={80}
+                      unoptimized={!isOptimizableImage(item.imagen_url)}
                       className="w-20 h-20 object-cover rounded"
                     />
                   )}

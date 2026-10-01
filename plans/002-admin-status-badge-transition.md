@@ -1,6 +1,6 @@
 # 002 — Transition on admin activo/inactivo status badges
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 6501b96
 - **Severity**: MEDIUM
 - **Category**: Interruptibility / Accessibility (state indication)

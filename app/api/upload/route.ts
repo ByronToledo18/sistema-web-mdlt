@@ -1,49 +1,70 @@
 import { put } from "@vercel/blob"
-import { type NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { HttpError } from "@/lib/http"
+import { withAuth } from "@/server/auth/guard"
 
-export async function POST(request: NextRequest) {
-  try {
-    // Require authentication
-    const user = await requireAuth(["administrador", "asistente"])
+const MAX_BYTES = 5 * 1024 * 1024 // 5MB
 
-    const formData = await request.formData()
-    const file = formData.get("file") as File
+// Formatos aceptados, identificados por sus primeros bytes ("magic bytes").
+// No se confía en file.type ni en la extensión: los manda el navegador y se
+// pueden falsificar para subir HTML o SVG con scripts al dominio del blob.
+const FORMATOS = [
+  { ext: "jpg", type: "image/jpeg", matches: (b: Uint8Array) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  {
+    ext: "png",
+    type: "image/png",
+    matches: (b: Uint8Array) => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v),
+  },
+  {
+    ext: "webp",
+    type: "image/webp",
+    matches: (b: Uint8Array) =>
+      String.fromCharCode(...b.subarray(0, 4)) === "RIFF" && String.fromCharCode(...b.subarray(8, 12)) === "WEBP",
+  },
+]
 
-    if (!file) {
-      return NextResponse.json({ error: "No se proporcionó ningún archivo" }, { status: 400 })
-    }
-
-    // Validate file type (only images)
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "Solo se permiten archivos de imagen" }, { status: 400 })
-    }
-
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024 // 5MB
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: "El archivo es demasiado grande (máximo 5MB)" }, { status: 400 })
-    }
-
-    // Generate unique filename with timestamp
-    const timestamp = Date.now()
-    const filename = `${timestamp}-${file.name}`
-
-    // Upload to Vercel Blob
-    const blob = await put(filename, file, {
-      access: "public",
-    })
-
-    console.log("[v0] Image uploaded successfully:", blob.url)
-
-    return NextResponse.json({
-      url: blob.url,
-      filename: file.name,
-      size: file.size,
-      type: file.type,
-    })
-  } catch (error) {
-    console.error("[v0] Upload error:", error)
-    return NextResponse.json({ error: "Error al subir el archivo" }, { status: 500 })
-  }
+// "Foto Tutú Rosa (1).PNG" -> "foto-tutu-rosa-1"
+function slugify(nombre: string): string {
+  return (
+    nombre
+      .replace(/\.[^.]*$/, "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "imagen"
+  )
 }
+
+// POST - Subir la imagen de un producto o servicio a Vercel Blob. Solo la usan
+// los formularios del inventario, así que exige poder editar productos.
+export const POST = withAuth(
+  { permission: { module: "productos", action: "update" }, error: "Error al subir el archivo" },
+  async (request) => {
+    const file = (await request.formData()).get("file")
+    if (!(file instanceof File)) {
+      throw new HttpError(400, "No se proporcionó ningún archivo")
+    }
+    if (file.size > MAX_BYTES) {
+      throw new HttpError(400, "El archivo es demasiado grande (máximo 5MB)")
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const formato = FORMATOS.find((f) => f.matches(bytes))
+    if (!formato) {
+      throw new HttpError(400, "Solo se permiten imágenes JPG, PNG o WEBP")
+    }
+
+    // Nombre saneado con la extensión real; addRandomSuffix evita colisiones y
+    // que se puedan adivinar las URLs de otras imágenes.
+    const filename = `${slugify(file.name)}.${formato.ext}`
+    const blob = await put(filename, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
+      access: "public",
+      contentType: formato.type,
+      addRandomSuffix: true,
+    })
+
+    return NextResponse.json({ url: blob.url, filename, size: file.size, type: formato.type })
+  },
+)

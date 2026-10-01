@@ -3,6 +3,9 @@ import { put } from "@vercel/blob"
 import { sql } from "@/lib/db"
 import { getClienteFromToken } from "@/lib/auth"
 import { generarImagenDiseno } from "@/lib/gemini"
+import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 const MAX_DISENOS_POR_DIA = 5
 
@@ -14,6 +17,13 @@ export async function POST(request: NextRequest) {
     const cliente = await getClienteFromToken()
     if (!cliente) {
       return NextResponse.json({ error: "Debes iniciar sesión para diseñar tu tutú" }, { status: 401 })
+    }
+
+    // El conteo diario de abajo no frena ráfagas concurrentes (varias
+    // peticiones leen el mismo conteo antes de insertar); esto sí.
+    const limit = await rateLimit(request, { ...RATE_LIMITS.disenar, id: String(cliente.id) })
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfter)
     }
 
     const { descripcion } = await request.json()
@@ -58,14 +68,14 @@ export async function POST(request: NextRequest) {
     `
 
     return NextResponse.json({ diseno: result[0] }, { status: 201 })
-  } catch (error: any) {
-    console.error("[v0] Generar diseño error:", error)
-    return NextResponse.json({ error: error.message || "Error al generar el diseño" }, { status: 500 })
+  } catch (error) {
+    logger.error("api/catalogo/disenar POST", error)
+    return apiError(error, "Error al generar el diseño")
   }
 }
 
 // GET - Listar los diseños generados por el cliente autenticado
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const cliente = await getClienteFromToken()
     if (!cliente) {
@@ -79,8 +89,8 @@ export async function GET(request: NextRequest) {
     `
 
     return NextResponse.json({ disenos })
-  } catch (error: any) {
-    console.error("[v0] Get disenos error:", error)
-    return NextResponse.json({ error: error.message || "Error al obtener diseños" }, { status: 500 })
+  } catch (error) {
+    logger.error("api/catalogo/disenar GET", error)
+    return apiError(error, "Error al obtener diseños")
   }
 }

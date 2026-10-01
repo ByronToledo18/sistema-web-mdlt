@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
+import { logger } from "@/lib/logger"
 
 export async function GET() {
   try {
@@ -11,7 +12,7 @@ export async function GET() {
 
     return NextResponse.json({ user })
   } catch (error) {
-    console.error("[v0] Get current user error:", error)
+    logger.error("api/auth/me GET", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
   }
 }
