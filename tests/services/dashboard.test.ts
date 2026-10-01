@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest"
 import { db } from "@/server/db/client"
 import { pedidos } from "@/server/db/schema"
-import { pedidosPorEstado, ventasPorMes } from "@/server/services/dashboard"
+import { pedidosPorEstado, resumenDashboard, ventasPorMes } from "@/server/services/dashboard"
 import { resetDb } from "../support/db-client"
 import { crearCliente } from "../support/fixtures"
 
@@ -77,5 +77,19 @@ describe("pedidosPorEstado", () => {
       { estado: "anulado", cantidad: 1 },
       { estado: "entregado", cantidad: 0 },
     ])
+  })
+})
+
+describe("resumenDashboard: ventas del mes", () => {
+  test("suma los pedidos del mes actual sin contar los anulados, igual que ventasPorMes", async () => {
+    const ahora = new Date().toISOString()
+    await pedido(ahora, "20.00", "en_proceso")
+    await pedido(ahora, "50.00", "anulado")
+
+    const { ventasMes } = await resumenDashboard()
+    const [mesActual] = await ventasPorMes(1)
+
+    expect(ventasMes).toBe(20)
+    expect(mesActual.total).toBe(ventasMes)
   })
 })

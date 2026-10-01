@@ -28,12 +28,14 @@ export async function resumenDashboard() {
       })
       .from(productos)
       .where(sql`${productos.activo} = true`),
-    // El mes se calcula en la hora de Ecuador.
+    // El mes se calcula en la hora de Ecuador y no cuenta los anulados (igual
+    // que ventasPorMes).
     db
       .select({ total: sql<string>`COALESCE(SUM(${pedidos.total}), 0)` })
       .from(pedidos)
       .where(
-        sql`DATE_TRUNC('month', ${pedidos.created_at} AT TIME ZONE 'America/Guayaquil') = DATE_TRUNC('month', CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')`,
+        sql`DATE_TRUNC('month', ${horaLocal(sql`${pedidos.created_at}`)}) = DATE_TRUNC('month', CURRENT_TIMESTAMP AT TIME ZONE ${ZONA})
+          AND ${pedidos.estado} IS DISTINCT FROM 'anulado'`,
       ),
     queryRows<{ tipo: TipoActividad; id: number; descripcion: string; fecha: string | Date }>(
       db,
