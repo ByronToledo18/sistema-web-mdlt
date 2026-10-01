@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, eq, sql, type Column } from "drizzle-orm"
 import type { UserPayload } from "@/lib/jwt"
-import { hashPassword, needsRehash, verifyPassword } from "@/lib/password"
+import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
 import { db } from "@/server/db/client"
 import { roles, usuarios } from "@/server/db/schema"
 import type { LoginInput } from "@/server/validators/auth"
@@ -18,7 +18,14 @@ export interface RequestMeta {
 
 export type ResultadoLogin<T> =
   | { ok: true; sesion: T; tokenVersion: number }
-  | { ok: false; status: 401 | 403; error: string }
+  | { ok: false; status: 401; error: string }
+
+// Usuario inexistente, inactivo, sin contraseña o contraseña incorrecta
+// responden igual (mismo status, mismo mensaje y, con verifyDummyPassword,
+// tiempo parecido): el login no sirve para averiguar qué cuentas existen. El
+// motivo real queda en la auditoría.
+export const CREDENCIALES_INVALIDAS = "Credenciales inválidas"
+export const LOGIN_FALLIDO = { ok: false, status: 401, error: CREDENCIALES_INVALIDAS } as const
 
 // Los emails se guardan normalizados, pero puede haber filas antiguas con
 // mayúsculas o espacios: la búsqueda compara la forma normalizada.
@@ -46,13 +53,18 @@ export async function iniciarSesionAdmin(
     .where(emailIgual(usuarios.email, email))
     .limit(1)
 
+  // Siempre se calcula un PBKDF2, exista o no la cuenta.
+  const passwordOk = usuario
+    ? await verifyPassword(password, usuario.hash_password)
+    : await verifyDummyPassword(password)
+
   if (!usuario) {
     await registrarAuditoria({
       ...auditoria,
       accion: "login_fallido",
       descripcion: `Intento de login fallido para email: ${email}`,
     })
-    return { ok: false, status: 401, error: "Credenciales inválidas" }
+    return LOGIN_FALLIDO
   }
 
   if (!usuario.activo) {
@@ -62,17 +74,17 @@ export async function iniciarSesionAdmin(
       accion: "login_usuario_inactivo",
       descripcion: `Intento de login de usuario inactivo: ${usuario.email}`,
     })
-    return { ok: false, status: 403, error: "Usuario inactivo" }
+    return LOGIN_FALLIDO
   }
 
-  if (!(await verifyPassword(password, usuario.hash_password))) {
+  if (!passwordOk) {
     await registrarAuditoria({
       ...auditoria,
       usuario_id: usuario.id,
       accion: "login_password_incorrecto",
       descripcion: `Contraseña incorrecta para usuario: ${usuario.email}`,
     })
-    return { ok: false, status: 401, error: "Credenciales inválidas" }
+    return LOGIN_FALLIDO
   }
 
   // Hash antiguo (100 000 iteraciones, sin versión): se actualiza ahora que

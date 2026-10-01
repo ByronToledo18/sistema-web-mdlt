@@ -100,3 +100,14 @@ export function needsRehash(storedHash: string): boolean {
   const parsed = parseHash(storedHash)
   return !parsed || !storedHash.startsWith(`${PREFIJO}$`) || parsed.iteraciones < PBKDF2_ITERATIONS
 }
+
+// Hash con el que se compara cuando la cuenta no existe o no tiene
+// contraseña, para que el login tarde lo mismo que con una cuenta real (si
+// no, el tiempo de respuesta delata qué emails existen). Se calcula una vez.
+let dummyHash: Promise<string> | null = null
+
+export async function verifyDummyPassword(password: string): Promise<false> {
+  dummyHash ??= hashPassword("contraseña-ficticia-para-igualar-tiempos")
+  await verifyPassword(password, await dummyHash)
+  return false
+}

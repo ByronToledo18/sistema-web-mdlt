@@ -4,12 +4,12 @@ import { createHash, randomBytes } from "node:crypto"
 import { and, eq, isNull, ne, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import type { ClientePayload } from "@/lib/jwt"
-import { hashPassword, needsRehash, verifyPassword } from "@/lib/password"
+import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import { db } from "@/server/db/client"
 import { clientes } from "@/server/db/schema"
 import { normalizarEmail, normalizarTelefono, type LoginInput, type RegistroInput } from "@/server/validators/auth"
-import { emailIgual, type ResultadoLogin } from "./auth"
+import { emailIgual, LOGIN_FALLIDO, type ResultadoLogin } from "./auth"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
 import { crearTicket } from "./usuarios"
 
@@ -41,17 +41,12 @@ export async function iniciarSesionCliente({
     .where(emailIgual(clientes.email, email))
     .limit(1)
 
-  if (!cliente) {
-    return { ok: false, status: 401, error: "Credenciales inválidas" }
-  }
-  if (!cliente.activo) {
-    return { ok: false, status: 403, error: "Tu cuenta está desactivada. Contacta al soporte." }
-  }
-  if (!cliente.hash_password) {
-    return { ok: false, status: 403, error: "Tu cuenta no tiene contraseña configurada. Contacta al administrador." }
-  }
-  if (!(await verifyPassword(password, cliente.hash_password))) {
-    return { ok: false, status: 401, error: "Credenciales inválidas" }
+  // Inexistente, inactivo, sin contraseña o contraseña incorrecta: misma
+  // respuesta y siempre un PBKDF2 (ver LOGIN_FALLIDO en ./auth).
+  const hash = cliente?.hash_password
+  const passwordOk = hash ? await verifyPassword(password, hash) : await verifyDummyPassword(password)
+  if (!cliente || !cliente.activo || !hash || !passwordOk) {
+    return LOGIN_FALLIDO
   }
 
   await db
@@ -59,7 +54,7 @@ export async function iniciarSesionCliente({
     .set({
       ultimo_acceso: sql`CURRENT_TIMESTAMP`,
       // Hash antiguo (100 000 iteraciones): se actualiza ahora que se conoce la contraseña.
-      ...(needsRehash(cliente.hash_password) ? { hash_password: await hashPassword(password) } : {}),
+      ...(needsRehash(hash) ? { hash_password: await hashPassword(password) } : {}),
     })
     .where(eq(clientes.id, cliente.id))
 

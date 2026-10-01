@@ -309,3 +309,44 @@ describe("re-hash de contraseñas antiguas y logout", () => {
     expect((await filaCliente(c.id)).token_version).toBe(1)
   })
 })
+
+describe("login sin enumeración de cuentas", () => {
+  const FALLO = { ok: false, status: 401, error: "Credenciales inválidas" }
+
+  test("admin: inexistente, inactivo y contraseña incorrecta responden igual; la auditoría guarda el motivo", async () => {
+    const ana = await crearAdmin()
+    await db.insert(usuarios).values({
+      nombre: "Inés",
+      email: "ines@test.local",
+      hash_password: await hashPassword("clave-correcta"),
+      rol_id: ana.rol_id,
+      activo: false,
+    })
+
+    const resultados = [
+      await iniciarSesionAdmin(login("nadie@test.local", "clave-correcta")),
+      await iniciarSesionAdmin(login("ines@test.local", "clave-correcta")),
+      await iniciarSesionAdmin(login("ana@test.local", "mala")),
+    ]
+    for (const r of resultados) expect(r).toEqual(FALLO)
+    expect(await accionesAuditadas()).toEqual([
+      "login_fallido",
+      "login_usuario_inactivo",
+      "login_password_incorrecto",
+    ])
+  })
+
+  test("portal: inexistente, inactivo, sin contraseña y contraseña incorrecta responden igual", async () => {
+    await crearCliente({ email: "a@test.local", hash_password: await hashPassword("secreta") })
+    await crearCliente({ email: "b@test.local", hash_password: await hashPassword("secreta"), activo: false })
+    await crearCliente({ email: "c@test.local" })
+
+    const resultados = [
+      await iniciarSesionCliente(login("x@test.local", "secreta")),
+      await iniciarSesionCliente(login("b@test.local", "secreta")),
+      await iniciarSesionCliente(login("c@test.local", "secreta")),
+      await iniciarSesionCliente(login("a@test.local", "mala")),
+    ]
+    for (const r of resultados) expect(r).toEqual(FALLO)
+  })
+})
