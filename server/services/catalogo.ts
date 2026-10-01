@@ -199,6 +199,17 @@ export async function tarifasDeEnvio() {
     .orderBy(asc(tarifasEnvio.ciudad))
 }
 
+// Si el servicio "Envío" grava IVA: el checkout lo usa para mostrar el total
+// (el servidor lo vuelve a calcular al crear el pedido).
+export async function envioGrabaIva(): Promise<boolean> {
+  const [servicio] = await db
+    .select({ graba_iva: servicios.graba_iva })
+    .from(servicios)
+    .where(eq(servicios.nombre, SERVICIO_ENVIO))
+    .limit(1)
+  return servicio?.graba_iva ?? true
+}
+
 // Productos y servicios activos para la grilla del catálogo público, con los
 // precios como número. El servicio "Envío" no se vende suelto.
 export async function itemsDelCatalogo(search?: string) {
@@ -211,6 +222,7 @@ export async function itemsDelCatalogo(search?: string) {
         precio: productos.precio,
         stock: productos.stock,
         imagen_url: productos.imagen_url,
+        graba_iva: productos.graba_iva,
       })
       .from(productos)
       .where(
@@ -228,6 +240,7 @@ export async function itemsDelCatalogo(search?: string) {
         precio: servicios.precio_base,
         variable: servicios.variable,
         imagen_url: servicios.imagen_url,
+        graba_iva: servicios.graba_iva,
       })
       .from(servicios)
       .where(

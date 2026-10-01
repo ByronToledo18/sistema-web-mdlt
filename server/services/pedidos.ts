@@ -4,6 +4,7 @@ import { and, asc, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm
 import type { UserPayload } from "@/lib/auth"
 import { anioNegocio, hoyNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
+import { desgloseIva } from "@/lib/iva"
 import { db, withTx, type Tx } from "@/server/db/client"
 import {
   clientes,
@@ -30,13 +31,12 @@ import {
   assertPedidoEditable,
   bloquearPedido,
   generarCodigoPedido,
+  montosDeLinea,
   recalcularTotalPedido,
   saldoPendienteCents,
 } from "./pedido-base"
 import { ajustarStock, descontarStock, devolverStock } from "./stock"
 import { registrarAuditoria } from "./auditoria"
-
-const IVA_RATE = 0.15 // mismo porcentaje que las facturas de proveedores
 
 // --- Lecturas ---------------------------------------------------------------------
 
@@ -216,14 +216,19 @@ export async function agregarItem(user: UserPayload, pedidoId: number, input: Ag
     assertPedidoEditable(user, pedido.estado, "No se pueden agregar items a un pedido terminado, anulado o entregado")
     assertNoAnulado(pedido.estado)
 
+    // graba_iva se copia del producto/servicio en este momento.
+    let grabaIva: boolean
     if (input.item_tipo === "producto") {
-      await descontarStock(tx, input.item_id, input.cantidad)
+      grabaIva = (await descontarStock(tx, input.item_id, input.cantidad)).graba_iva
     } else {
-      const [servicio] = await tx.select({ id: servicios.id }).from(servicios).where(eq(servicios.id, input.item_id))
+      const [servicio] = await tx
+        .select({ graba_iva: servicios.graba_iva })
+        .from(servicios)
+        .where(eq(servicios.id, input.item_id))
       if (!servicio) throw new HttpError(404, "Servicio no encontrado")
+      grabaIva = servicio.graba_iva
     }
 
-    const precio = toCents(input.precio_unitario)
     const [item] = await tx
       .insert(pedidoItems)
       .values({
@@ -232,8 +237,7 @@ export async function agregarItem(user: UserPayload, pedidoId: number, input: Ag
         item_id: input.item_id,
         descripcion: input.descripcion,
         cantidad: String(input.cantidad),
-        precio_unitario: fromCents(precio),
-        subtotal: fromCents(precio * input.cantidad),
+        ...montosDeLinea(toCents(input.precio_unitario), input.cantidad, grabaIva),
       })
       .returning()
 
@@ -267,9 +271,9 @@ export async function editarItem(user: UserPayload, pedidoId: number, itemId: nu
       .update(pedidoItems)
       .set({
         cantidad: String(cantidad),
-        precio_unitario: fromCents(precio),
         descripcion: input.descripcion !== undefined ? input.descripcion : actual.descripcion,
-        subtotal: fromCents(Math.round(precio * cantidad)),
+        // Conserva el graba_iva con el que se agregó la línea.
+        ...montosDeLinea(precio, cantidad, actual.graba_iva),
       })
       .where(eq(pedidoItems.id, itemId))
       .returning()
@@ -320,18 +324,30 @@ export async function crearPedidoDesdeCatalogo(clienteId: number, input: CrearPe
       })
       .where(eq(clientes.id, clienteId))
 
-    const items: { tipo: "producto" | "servicio"; id: number; nombre: string; cantidad: number; precio: number }[] = []
+    const items: {
+      tipo: "producto" | "servicio"
+      id: number
+      nombre: string
+      cantidad: number
+      precio: number
+      grabaIva: boolean
+    }[] = []
     for (const item of input.items) {
       if (item.tipo === "producto") {
         const producto = await descontarStock(tx, item.id, item.cantidad, { soloActivos: true })
-        items.push({ ...item, nombre: producto.nombre, precio: toCents(producto.precio) })
+        items.push({ ...item, nombre: producto.nombre, precio: toCents(producto.precio), grabaIva: producto.graba_iva })
       } else {
         const [servicio] = await tx
-          .select({ nombre: servicios.nombre, precio_base: servicios.precio_base })
+          .select({ nombre: servicios.nombre, precio_base: servicios.precio_base, graba_iva: servicios.graba_iva })
           .from(servicios)
           .where(and(eq(servicios.id, item.id), eq(servicios.activo, true)))
         if (!servicio) throw new HttpError(400, "Servicio no encontrado o inactivo")
-        items.push({ ...item, nombre: servicio.nombre, precio: toCents(servicio.precio_base) })
+        items.push({
+          ...item,
+          nombre: servicio.nombre,
+          precio: toCents(servicio.precio_base),
+          grabaIva: servicio.graba_iva,
+        })
       }
     }
 
@@ -347,8 +363,29 @@ export async function crearPedidoDesdeCatalogo(clienteId: number, input: CrearPe
       costoEnvio = toCents(tarifa.costo)
     }
 
-    const subtotal = items.reduce((acc, item) => acc + Math.round(item.precio * item.cantidad), 0)
-    const total = subtotal + costoEnvio
+    // El envío es una línea más, con el graba_iva de su propio servicio.
+    const servicioEnvio = esEnvio && costoEnvio > 0 ? await buscarServicioEnvio(tx) : null
+    if (esEnvio && costoEnvio > 0 && !servicioEnvio) {
+      throw new HttpError(400, `No existe el servicio "${SERVICIO_ENVIO}" en el catálogo`)
+    }
+    const lineas = items.map((item) => ({
+      item_tipo: item.tipo,
+      item_id: item.id,
+      descripcion: item.nombre,
+      cantidad: String(item.cantidad),
+      ...montosDeLinea(item.precio, item.cantidad, item.grabaIva),
+    }))
+    if (servicioEnvio) {
+      lineas.push({
+        item_tipo: "servicio",
+        item_id: servicioEnvio.id,
+        descripcion: SERVICIO_ENVIO,
+        cantidad: "1",
+        ...montosDeLinea(costoEnvio, 1, servicioEnvio.graba_iva),
+      })
+    }
+    // Total con IVA: Σ subtotales + Σ IVA por línea (igual que recalcularTotalPedido).
+    const { total } = desgloseIva(lineas.map((l) => ({ subtotalCents: toCents(l.subtotal), grabaIva: l.graba_iva })))
 
     let notas = `Método de entrega: ${esEnvio ? "Envío a Domicilio" : "Retiro en Tienda"}`
     if (esEnvio && input.ciudadEnvio) notas += `\nCiudad de envío: ${input.ciudadEnvio}`
@@ -369,32 +406,7 @@ export async function crearPedidoDesdeCatalogo(clienteId: number, input: CrearPe
       })
       .returning({ id: pedidos.id, codigo: pedidos.codigo, total: pedidos.total })
 
-    await tx.insert(pedidoItems).values(
-      items.map((item) => ({
-        pedido_id: pedido.id,
-        item_tipo: item.tipo,
-        item_id: item.id,
-        descripcion: item.nombre,
-        cantidad: String(item.cantidad),
-        precio_unitario: fromCents(item.precio),
-        subtotal: fromCents(Math.round(item.precio * item.cantidad)),
-      })),
-    )
-
-    if (esEnvio && costoEnvio > 0) {
-      const servicioEnvio = await buscarServicioEnvio(tx)
-      if (servicioEnvio) {
-        await tx.insert(pedidoItems).values({
-          pedido_id: pedido.id,
-          item_tipo: "servicio",
-          item_id: servicioEnvio.id,
-          descripcion: SERVICIO_ENVIO,
-          cantidad: "1",
-          precio_unitario: fromCents(costoEnvio),
-          subtotal: fromCents(costoEnvio),
-        })
-      }
-    }
+    await tx.insert(pedidoItems).values(lineas.map((linea) => ({ ...linea, pedido_id: pedido.id })))
 
     return pedido
   })
@@ -430,13 +442,25 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
       if (pedido.estado === "anulado") throw new HttpError(400, "No se puede facturar un pedido anulado")
 
       const items = await tx
-        .select({ subtotal: pedidoItems.subtotal })
+        .select({ subtotal: pedidoItems.subtotal, iva: pedidoItems.iva, graba_iva: pedidoItems.graba_iva })
         .from(pedidoItems)
         .where(eq(pedidoItems.pedido_id, pedidoId))
       if (items.length === 0) throw new HttpError(400, "El pedido no tiene ítems para facturar")
 
-      const subtotal = items.reduce((acc, item) => acc + toCents(item.subtotal), 0)
-      const iva = Math.round(subtotal * IVA_RATE)
+      // Desglose a partir de las líneas guardadas (su IVA ya está redondeado
+      // por línea). El total coincide con pedidos.total, que es lo cobrado.
+      let subtotal = 0
+      let subtotal0 = 0
+      let iva = 0
+      for (const item of items) {
+        subtotal += toCents(item.subtotal)
+        if (!item.graba_iva) subtotal0 += toCents(item.subtotal)
+        iva += toCents(item.iva)
+      }
+      if (subtotal + iva !== toCents(pedido.total)) {
+        // No debería pasar: recalcularTotalPedido mantiene el total al día.
+        throw new HttpError(500, "El total del pedido no coincide con sus ítems")
+      }
 
       const year = anioNegocio()
       const numeroFactura = await siguienteCodigo(tx, {
@@ -453,6 +477,7 @@ export async function generarFactura(user: UserPayload, pedidoId: number) {
           // El default CURRENT_DATE de la columna es el día de UTC.
           fecha_emision: hoyNegocio(),
           subtotal: fromCents(subtotal),
+          subtotal_0: fromCents(subtotal0),
           iva: fromCents(iva),
           total: fromCents(subtotal + iva),
         })

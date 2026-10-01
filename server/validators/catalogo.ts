@@ -32,6 +32,11 @@ export const productoBody = z.object({
     .optional()
     .transform((v) => v !== false),
   imagen_url: optionalText,
+  // Sin el campo, grava IVA (los precios del catálogo no lo incluyen).
+  graba_iva: z
+    .boolean()
+    .optional()
+    .transform((v) => v !== false),
 })
 export type DatosProducto = z.output<typeof productoBody>
 
@@ -48,5 +53,9 @@ export const servicioBody = z.object({
     .optional()
     .transform((v) => v !== false),
   imagen_url: optionalText,
+  graba_iva: z
+    .boolean()
+    .optional()
+    .transform((v) => v !== false),
 })
 export type DatosServicio = z.output<typeof servicioBody>

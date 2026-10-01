@@ -16,6 +16,7 @@ import {
 } from "@/app/(admin)/admin/inventario/actions"
 import type { ActionResult } from "@/server/auth/action"
 import { formatCurrency } from "@/components/admin/format"
+import { IVA_PORCENTAJE } from "@/lib/iva"
 import { ProductoFormDialog } from "./producto-form-dialog"
 import { ServicioFormDialog } from "./servicio-form-dialog"
 import type { Producto, Servicio } from "./types"
@@ -126,6 +127,12 @@ export function InventarioTabs({ productos, servicios, canManage }: InventarioTa
                       <span className="text-lg font-bold">{formatCurrency(producto.precio)}</span>
                     </div>
                     <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">IVA:</span>
+                      <Badge variant={producto.graba_iva ? "outline" : "secondary"}>
+                        {producto.graba_iva ? `Grava ${IVA_PORCENTAJE} %` : "No grava"}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Stock:</span>
                       <span className={`font-medium ${producto.stock === 0 ? "text-red-600" : ""}`}>
                         {producto.stock} unidades
@@ -213,6 +220,12 @@ export function InventarioTabs({ productos, servicios, canManage }: InventarioTa
                       <span className="text-sm text-muted-foreground">Precio:</span>
                       <Badge variant={servicio.variable ? "outline" : "secondary"}>
                         {servicio.variable ? "Variable" : "Fijo"}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">IVA:</span>
+                      <Badge variant={servicio.graba_iva ? "outline" : "secondary"}>
+                        {servicio.graba_iva ? `Grava ${IVA_PORCENTAJE} %` : "No grava"}
                       </Badge>
                     </div>
 

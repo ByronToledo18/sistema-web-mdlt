@@ -18,6 +18,11 @@ export interface Actividad {
 }
 
 // Números del dashboard y las últimas 5 acciones (pedidos, cobros, envíos).
+//
+// Las ventas suman pedidos.total, que incluye el IVA de los ítems que lo
+// gravan (lib/iva.ts): es lo que se cobra y lo que dice la factura, así el
+// dashboard cuadra con los cobros. Los pedidos anteriores a la migración 0003
+// no tienen IVA en sus líneas y se suman con su total histórico.
 export async function resumenDashboard() {
   const [pedidosActivos, clientesTotales, productosData, ventasMes, actividad] = await Promise.all([
     db.select({ value: count() }).from(pedidos).where(inArray(pedidos.estado, ["recibido", "en_proceso"])),

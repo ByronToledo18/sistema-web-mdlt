@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert } from "@/components/ui/alert"
 import { X, Loader2, Search } from "lucide-react"
 import { useState, useEffect } from "react"
-import { getCart, clearCart } from "@/lib/cart"
+import { getCart, clearCart, desgloseCarrito } from "@/lib/cart"
+import { IVA_PORCENTAJE } from "@/lib/iva"
 import { logger } from "@/lib/logger"
 
 interface CheckoutModalProps {
@@ -34,6 +35,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [isClientLoggedIn, setIsClientLoggedIn] = useState(false)
 
   const [tarifas, setTarifas] = useState<Tarifa[]>([])
+  // Si el servicio "Envío" grava IVA (lo informa /api/tarifas-envio).
+  const [envioGrabaIva, setEnvioGrabaIva] = useState(true)
   const [ciudadSearch, setCiudadSearch] = useState("")
   const [showCiudadDropdown, setShowCiudadDropdown] = useState(false)
 
@@ -49,8 +52,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   })
 
   const cart = getCart()
-  const subtotal = cart.total
-  const total = formData.metodoEntrega === "envio" ? subtotal + costoEnvio : subtotal
+  // Solo informativo: el servidor recalcula precios, IVA y envío al crear el pedido.
+  const desglose = desgloseCarrito(
+    cart.items,
+    formData.metodoEntrega === "envio" ? { costo: costoEnvio, grabaIva: envioGrabaIva } : null,
+  )
+  // Subtotal sin IVA de los productos y servicios (el envío va en su propia fila).
+  const subtotalProductos = desgloseCarrito(cart.items).subtotal
 
   useEffect(() => {
     if (isOpen) {
@@ -65,6 +73,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       const data = await response.json()
       if (response.ok) {
         setTarifas(data.tarifas || [])
+        setEnvioGrabaIva(data.envio_graba_iva !== false)
       }
     } catch (error) {
       logger.error("catalogo/checkout: cargar tarifas", error)
@@ -443,7 +452,9 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
               <div className="space-y-2 p-4 bg-muted/50 rounded-lg border border-border">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal:</span>
-                  <span className="text-foreground font-medium">${subtotal.toFixed(2)}</span>
+                  <span className="text-foreground font-medium">
+                    ${(subtotalProductos / 100).toFixed(2)}
+                  </span>
                 </div>
                 {formData.metodoEntrega === "envio" && (
                   <div className="flex justify-between text-sm">
@@ -453,9 +464,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     </span>
                   </div>
                 )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">IVA {IVA_PORCENTAJE} %:</span>
+                  <span className="text-foreground font-medium">${(desglose.iva / 100).toFixed(2)}</span>
+                </div>
                 <div className="flex justify-between text-lg font-bold pt-2 border-t">
                   <span className="text-foreground">Total:</span>
-                  <span className="text-primary">${total.toFixed(2)}</span>
+                  <span className="text-primary">${(desglose.total / 100).toFixed(2)}</span>
                 </div>
               </div>
 

@@ -4,10 +4,11 @@ import { eq, sql, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
 import { anioNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
+import { ivaCents } from "@/lib/iva"
 import { can } from "@/server/auth/guard"
 import type { Executor } from "@/server/db/client"
 import { pagos, pedidoItems, pedidos } from "@/server/db/schema"
-import { siguienteCodigo, toCents } from "./_shared"
+import { fromCents, siguienteCodigo, toCents } from "./_shared"
 
 // Piezas de pedidos que usan también pagos y envíos (separadas de
 // pedidos.ts para no tener imports circulares).
@@ -65,11 +66,26 @@ export async function saldoPendienteCents(ex: Executor, pedido: { id: number; to
   return toCents(pedido.total) - toCents(pagado)
 }
 
+// Columnas de dinero de una línea de pedido: subtotal = precio × cantidad
+// (sin IVA) y el IVA de la línea redondeado a centavos (lib/iva.ts). graba_iva
+// se copia del producto/servicio al agregar la línea y no cambia después.
+export function montosDeLinea(precioCents: number, cantidad: number, grabaIva: boolean) {
+  const subtotal = Math.round(precioCents * cantidad)
+  return {
+    precio_unitario: fromCents(precioCents),
+    subtotal: fromCents(subtotal),
+    graba_iva: grabaIva,
+    iva: fromCents(ivaCents(subtotal, grabaIva)),
+  }
+}
+
+// total del pedido = Σ subtotales + Σ IVA de las líneas. Es lo que se cobra
+// (pagos, saldo, cierre) y lo que suma la factura.
 export async function recalcularTotalPedido(ex: Executor, pedidoId: number): Promise<void> {
   await ex
     .update(pedidos)
     .set({
-      total: sql`(SELECT COALESCE(SUM(${pedidoItems.subtotal}), 0) FROM ${pedidoItems} WHERE ${pedidoItems.pedido_id} = ${pedidoId})`,
+      total: sql`(SELECT COALESCE(SUM(${pedidoItems.subtotal} + ${pedidoItems.iva}), 0) FROM ${pedidoItems} WHERE ${pedidoItems.pedido_id} = ${pedidoId})`,
       updated_at: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(pedidos.id, pedidoId))

@@ -43,7 +43,7 @@ export default async function DashboardPage() {
     {
       title: "Ventas del Mes",
       value: `$${ventasMes.toFixed(2)}`,
-      description: "Total del mes actual",
+      description: "Total del mes actual, con IVA",
       icon: TrendingUp,
       trend: "up",
     },

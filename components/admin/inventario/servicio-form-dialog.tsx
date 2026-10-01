@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { IVA_PORCENTAJE } from "@/lib/iva"
 import { guardarServicioAction } from "@/app/(admin)/admin/inventario/actions"
 import { ImageUploadField } from "./image-upload-field"
 import type { Servicio } from "./types"
@@ -33,6 +34,7 @@ function formDe(servicio: Servicio | null) {
     precio_base: servicio?.precio_base ?? "",
     variable: servicio?.variable ?? false,
     activo: servicio?.activo ?? true,
+    graba_iva: servicio?.graba_iva ?? true,
     imagen_url: servicio?.imagen_url ?? null,
   }
 }
@@ -137,6 +139,20 @@ function ServicioForm({ servicio, onDone }: { servicio: Servicio | null; onDone:
             onCheckedChange={(activo) => setForm({ ...form, activo })}
           />
           <Label htmlFor="activo-servicio">Servicio activo</Label>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="graba-iva-servicio"
+              checked={form.graba_iva}
+              onCheckedChange={(graba_iva) => setForm({ ...form, graba_iva })}
+            />
+            <Label htmlFor="graba-iva-servicio">Grava IVA</Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            El precio no incluye IVA. Si grava, el pedido le suma el {IVA_PORCENTAJE} %.
+          </p>
         </div>
       </div>
 

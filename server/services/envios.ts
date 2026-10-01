@@ -17,7 +17,7 @@ import {
   servientregaPagos,
 } from "@/server/db/schema"
 import { fromCents, paginar, periodoActual, pgErrorCode, PG_FOREIGN_KEY_VIOLATION, siguienteCodigo, toCents } from "./_shared"
-import { assertPedidoEditable, bloquearPedido, recalcularTotalPedido } from "./pedido-base"
+import { assertPedidoEditable, bloquearPedido, montosDeLinea, recalcularTotalPedido } from "./pedido-base"
 
 // Nombre del servicio del catálogo que representa el costo de envío en
 // pedido_items (item_tipo = 'servicio').
@@ -37,7 +37,7 @@ export function generarNumeroGuia(ex: Executor): Promise<string> {
 
 export async function buscarServicioEnvio(ex: Executor) {
   const [servicio] = await ex
-    .select({ id: servicios.id })
+    .select({ id: servicios.id, graba_iva: servicios.graba_iva })
     .from(servicios)
     .where(eq(servicios.nombre, SERVICIO_ENVIO))
     .limit(1)
@@ -129,8 +129,8 @@ export async function crearEnvio(user: UserPayload, input: { pedido_id: number; 
       item_id: servicioEnvio.id,
       descripcion: "Costo de Envío",
       cantidad: "1",
-      precio_unitario: costo,
-      subtotal: costo,
+      // El envío respeta el graba_iva de su propio servicio.
+      ...montosDeLinea(toCents(input.costo), 1, servicioEnvio.graba_iva),
     })
     await recalcularTotalPedido(tx, pedido.id)
 

@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { crearFacturaProveedorAction } from "@/app/(admin)/admin/proveedores/actions"
 import { formatCurrency } from "@/components/admin/format"
+import { IVA_PORCENTAJE, IVA_RATE } from "@/lib/iva"
 
 interface ProductoOpcion {
   id: number
@@ -35,7 +36,6 @@ interface FacturaItem {
   precio_unitario: string
 }
 
-const IVA_RATE = 0.15
 const emptyItem: FacturaItem = { producto_id: null, descripcion: "", cantidad: "1", precio_unitario: "0" }
 const emptyForm = { numero_factura: "", fecha_emision: "", fecha_vencimiento: "", notas: "" }
 
@@ -260,7 +260,7 @@ export function NuevaFacturaDialog({ proveedorId, productos }: { proveedorId: nu
                     <span className="font-medium">{formatCurrency(subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>IVA (15%):</span>
+                    <span>IVA ({IVA_PORCENTAJE}%):</span>
                     <span className="font-medium">{formatCurrency(iva)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t pt-2">

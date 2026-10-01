@@ -31,6 +31,7 @@ export interface Producto {
   precio: number
   stock: number
   imagen_url: string | null
+  graba_iva: boolean
   tipo: "producto"
 }
 
@@ -41,6 +42,7 @@ export interface Servicio {
   precio: number
   variable: boolean | null
   imagen_url: string | null
+  graba_iva: boolean
   tipo: "servicio"
 }
 
@@ -109,6 +111,7 @@ export function CatalogoView({ productos, servicios }: CatalogoViewProps) {
         imagen_url: item.imagen_url,
         stock: item.stock,
         unidad: item.unidad,
+        graba_iva: item.graba_iva,
       },
       1,
     )

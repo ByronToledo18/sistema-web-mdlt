@@ -5,7 +5,8 @@ import Image from "next/image"
 import { X, ShoppingCart, Minus, Plus, Trash2, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { getCart, removeFromCart, updateQuantity, type Cart } from "@/lib/cart"
+import { desgloseCarrito, getCart, removeFromCart, updateQuantity, type Cart } from "@/lib/cart"
+import { IVA_PORCENTAJE } from "@/lib/iva"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { isOptimizableImage } from "@/lib/images"
 import { cn } from "@/lib/utils"
@@ -19,6 +20,7 @@ interface CartSidebarProps {
 export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
   const [cart, setCart] = useState<Cart>({ items: [], total: 0 })
   const [removingKeys, setRemovingKeys] = useState<Set<string>>(new Set())
+  const desglose = desgloseCarrito(cart.items)
 
   useEffect(() => {
     if (isOpen) {
@@ -167,7 +169,15 @@ export function CartSidebar({ isOpen, onClose, onCheckout }: CartSidebarProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span className="text-foreground font-medium">${cart.total.toFixed(2)}</span>
+                <span className="text-foreground font-medium">${(desglose.subtotal / 100).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">IVA {IVA_PORCENTAJE} %:</span>
+                <span className="text-foreground font-medium">${(desglose.iva / 100).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-semibold">
+                <span className="text-foreground">Total:</span>
+                <span className="text-foreground">${(desglose.total / 100).toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>+ Costo de envío</span>

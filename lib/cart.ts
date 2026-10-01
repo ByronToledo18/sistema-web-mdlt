@@ -1,3 +1,5 @@
+import { desgloseIva, type DesgloseIva } from "@/lib/iva"
+
 export interface CartItem {
   id: number
   tipo: "producto" | "servicio"
@@ -7,6 +9,9 @@ export interface CartItem {
   imagen_url?: string | null
   stock?: number
   unidad?: string
+  // Si grava IVA. Los carritos guardados antes de este campo no lo traen: se
+  // asume que grava (el valor por defecto del catálogo).
+  graba_iva?: boolean
 }
 
 export interface Cart {
@@ -75,4 +80,21 @@ export function updateQuantity(id: number, tipo: "producto" | "servicio", cantid
 export function clearCart(): void {
   if (typeof window === "undefined") return
   localStorage.removeItem(CART_KEY)
+}
+
+// Desglose del carrito (y del envío, si lo hay) en centavos, con el IVA
+// redondeado por línea igual que en el servidor. Solo es informativo: el
+// pedido lo recalcula el servidor con los precios y flags de la base.
+export function desgloseCarrito(
+  items: CartItem[],
+  envio?: { costo: number; grabaIva: boolean } | null,
+): DesgloseIva {
+  const lineas = items.map((item) => ({
+    subtotalCents: Math.round(Math.round(item.precio * 100) * item.cantidad),
+    grabaIva: item.graba_iva !== false,
+  }))
+  if (envio && envio.costo > 0) {
+    lineas.push({ subtotalCents: Math.round(envio.costo * 100), grabaIva: envio.grabaIva })
+  }
+  return desgloseIva(lineas)
 }

@@ -162,7 +162,7 @@ describe("estado y factura", () => {
 
   test("la factura suma 15 % de IVA y no se genera dos veces", async () => {
     const pedido = await pedidoNuevo()
-    const producto = await crearProducto()
+    const producto = await crearProducto({ graba_iva: true })
     await agregarItem(asistente, pedido.id, itemProducto(producto.id, 2, 50))
 
     const factura = await generarFactura(admin, pedido.id)

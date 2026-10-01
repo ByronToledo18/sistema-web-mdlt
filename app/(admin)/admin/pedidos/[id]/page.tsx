@@ -136,7 +136,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
               <div className="pt-4 border-t space-y-2">
                 <div className="flex justify-between items-center">
-                  <p className="text-sm font-medium">Total del Pedido</p>
+                  <p className="text-sm font-medium">Total del Pedido (con IVA)</p>
                   <p className="text-2xl font-bold">{formatCurrency(pedido.total)}</p>
                 </div>
                 <div className="flex justify-between items-center">
