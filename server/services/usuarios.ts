@@ -7,6 +7,7 @@ import { db, withTx, type Tx } from "@/server/db/client"
 import { roles, tickets, usuarios } from "@/server/db/schema"
 import type { CrearUsuario } from "@/server/validators/usuarios"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
+import { emailIgual } from "./auth"
 
 // Roles que siempre tienen que conservar al menos un usuario activo.
 const ROLES_PROTEGIDOS: Record<string, string> = {
@@ -124,7 +125,11 @@ function assertPuedeGestionar(actor: Actor, usuario: { rol_nombre: string }, acc
 
 export async function crearUsuario(input: CrearUsuario) {
   await assertRolExiste(input.rol_id)
-  const [existente] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.email, input.email))
+  const [existente] = await db
+    .select({ id: usuarios.id })
+    .from(usuarios)
+    .where(emailIgual(usuarios.email, input.email))
+    .limit(1)
   if (existente) throw new HttpError(400, "El email ya está registrado")
 
   try {

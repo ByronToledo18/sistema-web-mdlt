@@ -60,13 +60,18 @@ async function verify(token: string, audience: string) {
   }
 }
 
+// Duración de las sesiones. Las cookies (server/auth/cookies.ts) usan los
+// mismos valores como maxAge.
+export const ADMIN_SESSION_SECONDS = 60 * 60 * 24 // 24 horas
+export const PORTAL_SESSION_SECONDS = 60 * 60 * 24 * 7 // 7 días
+
 // `tv` = token_version del usuario/cliente al momento del login.
 export async function generateToken(user: UserPayload, tokenVersion: number): Promise<string> {
-  return await sign({ user, tv: tokenVersion }, ADMIN_AUDIENCE, "24h")
+  return await sign({ user, tv: tokenVersion }, ADMIN_AUDIENCE, `${ADMIN_SESSION_SECONDS}s`)
 }
 
 export async function generatePortalToken(cliente: ClientePayload, tokenVersion: number): Promise<string> {
-  return await sign({ cliente, tv: tokenVersion }, PORTAL_AUDIENCE, "7d")
+  return await sign({ cliente, tv: tokenVersion }, PORTAL_AUDIENCE, `${PORTAL_SESSION_SECONDS}s`)
 }
 
 export async function verifyAdminToken(token: string): Promise<{ user: UserPayload; tv: unknown } | null> {

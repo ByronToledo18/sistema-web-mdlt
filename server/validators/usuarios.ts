@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { normalizarEmail } from "./auth"
 import { id, optionalText, requiredText } from "./common"
 
 const REQUERIDOS = "Todos los campos son requeridos"
@@ -6,7 +7,7 @@ const PASSWORD_CORTA = "La contraseña debe tener al menos 6 caracteres"
 
 export const crearUsuarioBody = z.object({
   nombre: requiredText(REQUERIDOS),
-  email: requiredText(REQUERIDOS).pipe(z.email("Email inválido")),
+  email: requiredText(REQUERIDOS).pipe(z.email("Email inválido")).transform(normalizarEmail),
   password: z.string({ error: REQUERIDOS }).min(6, PASSWORD_CORTA),
   rol_id: z.coerce.number({ error: REQUERIDOS }).int().positive(REQUERIDOS),
 })
