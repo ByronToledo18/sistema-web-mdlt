@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, getTableColumns, ilike, ne, or, sql } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
 import { anioNegocio, hoyNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
@@ -340,7 +340,9 @@ export async function crearPedidoDesdeCatalogo(clienteId: number, input: CrearPe
         const [servicio] = await tx
           .select({ nombre: servicios.nombre, precio_base: servicios.precio_base, graba_iva: servicios.graba_iva })
           .from(servicios)
-          .where(and(eq(servicios.id, item.id), eq(servicios.activo, true)))
+          // El servicio "Envío" no se compra suelto: solo lo agrega el servidor
+          // según metodoEntrega y la tarifa de la ciudad.
+          .where(and(eq(servicios.id, item.id), eq(servicios.activo, true), ne(servicios.nombre, SERVICIO_ENVIO)))
         if (!servicio) throw new HttpError(400, "Servicio no encontrado o inactivo")
         items.push({
           ...item,
