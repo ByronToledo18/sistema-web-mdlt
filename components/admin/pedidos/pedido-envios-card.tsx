@@ -49,7 +49,7 @@ export function PedidoEnviosCard({ envios, canDeleteEnvio }: { envios: EnvioPedi
         {envios.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No hay envíos registrados para este pedido.</p>
-            <p className="text-sm mt-2">Agrega el servicio de "Envío" como item para registrar el costo de envío.</p>
+            <p className="text-sm mt-2">Agrega el servicio de &quot;Envío&quot; como item para registrar el costo de envío.</p>
           </div>
         ) : (
           <div className="space-y-2">

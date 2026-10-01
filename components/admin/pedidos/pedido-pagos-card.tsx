@@ -177,7 +177,7 @@ export function PedidoPagosCard({ pedidoId, pagos, saldoPendiente, canModifyOrde
         {pagos.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No hay pagos registrados para este pedido.</p>
-            <p className="text-sm mt-2">Haz clic en "Registrar Pago" para agregar uno.</p>
+            <p className="text-sm mt-2">Haz clic en &quot;Registrar Pago&quot; para agregar uno.</p>
           </div>
         ) : (
           <div className="space-y-2">

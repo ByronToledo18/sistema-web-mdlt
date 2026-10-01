@@ -36,7 +36,7 @@ export async function getClienteFromToken(): Promise<ClientePayload | null> {
   try {
     const verified = await jwtVerify(token.value, JWT_SECRET)
     return verified.payload.cliente as ClientePayload
-  } catch (error) {
+  } catch {
     return null
   }
 }
@@ -146,12 +146,8 @@ export async function hashPassword(password: string): Promise<string> {
 // Verificar contraseña usando Web Crypto API
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   try {
-    console.log("[v0] Verifying password, hash format:", storedHash.substring(0, 10))
-
     // Check if it's a bcrypt hash (starts with $2a$, $2b$, or $2y$)
     if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$") || storedHash.startsWith("$2y$")) {
-      console.log("[v0] Detected bcrypt hash - this format is no longer supported")
-      console.log("[v0] Please run the password migration script or reset user passwords")
       return false
     }
 
@@ -159,7 +155,6 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     const [saltHex, hashHex] = storedHash.split(":")
 
     if (!saltHex || !hashHex) {
-      console.log("[v0] Invalid hash format - missing salt or hash")
       return false
     }
 
@@ -191,7 +186,6 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 
     // Compare hashes
     const isValid = computedHashHex === hashHex
-    console.log("[v0] Password verification result:", isValid)
     return isValid
   } catch (error) {
     console.error("[v0] Password verification error:", error)

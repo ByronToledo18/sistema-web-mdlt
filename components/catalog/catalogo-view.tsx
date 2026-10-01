@@ -93,7 +93,7 @@ export function CatalogoView({ productos, servicios }: CatalogoViewProps) {
         setIsClientLoggedIn(true)
         setClientName(data.cliente.nombre)
       }
-    } catch (error) {
+    } catch {
       // Not logged in, that's okay
     }
   }

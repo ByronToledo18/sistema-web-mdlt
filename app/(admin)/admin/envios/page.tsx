@@ -199,7 +199,7 @@ export default async function EnviosPage({ searchParams }: { searchParams: Searc
                 <CardContent>
                   {consolidacion.detalles.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      No hay envíos en este período. Agrega envíos desde la pestaña "Envíos".
+                      No hay envíos en este período. Agrega envíos desde la pestaña &quot;Envíos&quot;.
                     </div>
                   ) : (
                     <div className="space-y-2">
