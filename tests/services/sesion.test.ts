@@ -5,6 +5,7 @@ import { getClienteFromToken, getCurrentUser } from "@/lib/auth"
 import { generatePortalToken, generateToken } from "@/lib/jwt"
 import { adminAction } from "@/server/auth/action"
 import { withAuth, withCliente } from "@/server/auth/guard"
+import { requireCliente } from "@/server/auth/session"
 import { db } from "@/server/db/client"
 import { clientes, roles, usuarios } from "@/server/db/schema"
 import { alternarEstadoCliente } from "@/server/services/clientes"
@@ -215,5 +216,20 @@ describe("audiencias: un token no sirve en el área equivocada", () => {
     vi.stubEnv("JWT_SECRET", "secreto-de-test-con-longitud-suficiente")
 
     expect(await getCurrentUser()).toBeNull()
+  })
+})
+
+describe("requireCliente (páginas del portal)", () => {
+  test("sin sesión redirige al login del portal", async () => {
+    await expect(requireCliente()).rejects.toMatchObject({ digest: expect.stringContaining("/portal/login") })
+  })
+
+  test("con sesión vigente devuelve el cliente; tras revocarla, redirige", async () => {
+    const c = await crearCliente()
+    await loginPortal(c)
+    expect(await requireCliente()).toMatchObject({ id: c.id })
+
+    await alternarEstadoCliente(c.id) // desactivar incrementa token_version
+    await expect(requireCliente()).rejects.toMatchObject({ digest: expect.stringContaining("/portal/login") })
   })
 })

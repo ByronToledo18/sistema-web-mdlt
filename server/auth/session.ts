@@ -2,7 +2,7 @@ import "server-only"
 
 import { redirect } from "next/navigation"
 import { cache } from "react"
-import { getCurrentUser, type UserPayload } from "@/lib/auth"
+import { getClienteFromToken, getCurrentUser, type ClientePayload, type UserPayload } from "@/lib/auth"
 import { can } from "@/server/auth/guard"
 import type { Action, Module } from "@/lib/permissions"
 
@@ -23,4 +23,14 @@ export async function requirePermission(module: Module, action: Action = "read")
   const user = await requireUser()
   if (!can(user, module, action)) redirect("/admin/dashboard")
   return user
+}
+
+// Cliente del portal para Server Components (cookie portal-auth-token). El
+// proxy no protege /portal: cada página privada llama a requireCliente().
+export const getSessionCliente = cache(getClienteFromToken)
+
+export async function requireCliente(): Promise<ClientePayload> {
+  const cliente = await getSessionCliente()
+  if (!cliente) redirect("/portal/login")
+  return cliente
 }
