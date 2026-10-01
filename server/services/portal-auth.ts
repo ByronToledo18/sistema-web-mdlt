@@ -1,14 +1,14 @@
 import "server-only"
 
 import { createHash, randomBytes } from "node:crypto"
-import { and, eq, isNull, ne, sql } from "drizzle-orm"
+import { and, eq, isNull, like, ne, notInArray, or, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import type { ClientePayload } from "@/lib/jwt"
 import { hashPassword, needsRehash, verifyDummyPassword, verifyPassword } from "@/lib/password"
 import { conLimiteFallos, mensajeDemasiadosIntentos, RATE_LIMITS } from "@/lib/rate-limit"
 import { generateWhatsAppLink } from "@/lib/whatsapp"
 import { db } from "@/server/db/client"
-import { clientes } from "@/server/db/schema"
+import { clientes, tickets } from "@/server/db/schema"
 import { normalizarEmail, normalizarTelefono, type LoginInput, type RegistroInput } from "@/server/validators/auth"
 import { emailIgual, LOGIN_FALLIDO, type ResultadoLogin } from "./auth"
 import { pgErrorCode, PG_UNIQUE_VIOLATION } from "./_shared"
@@ -108,12 +108,14 @@ export async function registrarCliente(input: RegistroInput): Promise<ClienteReg
   if (conCedula && !coincideEmail(conCedula.email, input.email)) {
     // Solo coincide el teléfono: puede ser el dueño con otro email, pero el
     // teléfono no prueba identidad. No se vincula; la tienda lo verifica.
-    if (coincideTelefono(conCedula.telefono, input.telefono)) {
+    // Un solo ticket abierto por cliente y motivo: repetir el registro no
+    // llena la bandeja de soporte.
+    if (coincideTelefono(conCedula.telefono, input.telefono) && !(await hayTicketRegistroAbierto(conCedula.id))) {
       await crearTicket({
         tipo: "consulta",
         prioridad: "media",
         descripcion:
-          `Registro en el portal no vinculado: la cédula ${input.cedula} ya es el cliente #${conCedula.id} ` +
+          `${prefijoTicketRegistro(conCedula.id)} la cédula ${input.cedula} ya es el cliente #${conCedula.id} ` +
           `(${conCedula.nombre}) y el teléfono coincide, pero el email no. Verifica la identidad antes de ` +
           `vincular la cuenta.\n\nDatos enviados: nombre ${input.nombre}, email ${input.email}, ` +
           `teléfono ${input.telefono ?? "-"}, dirección ${input.direccion ?? "-"}.`,
@@ -163,6 +165,33 @@ export async function registrarCliente(input: RegistroInput): Promise<ClienteReg
     }
     throw error
   }
+}
+
+// Los tickets no tienen columna de cliente ni de motivo: el del registro no
+// vinculado empieza con este prefijo, que identifica ambos.
+function prefijoTicketRegistro(clienteId: number): string {
+  return `Registro en el portal no vinculado [cliente #${clienteId}]:`
+}
+
+// Estados que cierran un ticket. Hoy los tickets se crean "pendiente" y el
+// panel no les cambia el estado; "resuelto" y "cerrado" vienen del esquema
+// anterior (scripts/001-create-tables.sql). Cualquier otro estado (o null)
+// cuenta como abierto.
+const ESTADOS_TICKET_CERRADO = ["resuelto", "cerrado"]
+
+async function hayTicketRegistroAbierto(clienteId: number): Promise<boolean> {
+  const [abierto] = await db
+    .select({ id: tickets.id })
+    .from(tickets)
+    .where(
+      and(
+        eq(tickets.tipo, "consulta"),
+        like(tickets.descripcion, `${prefijoTicketRegistro(clienteId)}%`),
+        or(isNull(tickets.estado), notInArray(tickets.estado, ESTADOS_TICKET_CERRADO)),
+      ),
+    )
+    .limit(1)
+  return !!abierto
 }
 
 function coincideEmail(existente: string | null, email: string): boolean {

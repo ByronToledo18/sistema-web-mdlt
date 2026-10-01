@@ -284,6 +284,34 @@ describe("registro sobre un cliente existente (misma cédula, sin contraseña)",
     expect(lista[0].descripcion).not.toContain("clave-secreta")
   })
 
+  test("no repite el ticket mientras haya uno abierto para ese cliente; sí tras resolverlo", async () => {
+    const c = await crearCliente({ cedula: "0922222222", email: "duena@test.local", telefono: "0993333333" })
+    const otro = await crearCliente({ cedula: "0933333333", email: "otro@test.local", telefono: "0994444444" })
+    const intentar = (extra: Record<string, unknown>) =>
+      expect(registrarCliente(registro({ telefono: "0993333333", ...extra }))).rejects.toMatchObject({ status: 400 })
+
+    await intentar({ email: "nuevo@test.local" })
+    await intentar({ email: "nuevo@test.local" })
+    await intentar({ email: "otro-mas@test.local" })
+    let lista = await db.select().from(tickets)
+    expect(lista).toHaveLength(1)
+    expect(lista[0].descripcion).toContain(`[cliente #${c.id}]`)
+
+    // Otro cliente con el mismo motivo sí genera su propio ticket.
+    await expect(
+      registrarCliente(registro({ cedula: "0933333333", email: "x@test.local", telefono: "0994444444" })),
+    ).rejects.toMatchObject({ status: 400 })
+    expect(await db.select().from(tickets)).toHaveLength(2)
+
+    // Un ticket resuelto ya no cuenta como abierto: se crea uno nuevo.
+    await db.update(tickets).set({ estado: "resuelto" }).where(eq(tickets.id, lista[0].id))
+    await intentar({ email: "nuevo@test.local" })
+    lista = await db.select().from(tickets)
+    expect(lista).toHaveLength(3)
+    expect(lista.filter((t) => t.descripcion.includes(`[cliente #${c.id}]`))).toHaveLength(2)
+    expect(lista.filter((t) => t.descripcion.includes(`[cliente #${otro.id}]`))).toHaveLength(1)
+  })
+
   test("cliente existente sin email: tampoco vincula por teléfono", async () => {
     const c = await crearCliente({ cedula: "0922222222", email: null, telefono: "0993333333" })
     await expect(registrarCliente(registro({ email: "nuevo@test.local", telefono: "0993333333" }))).rejects.toMatchObject(
