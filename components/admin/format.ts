@@ -24,7 +24,7 @@ export function formatDateTime(value: string | Date | null | undefined): string 
 
 // Columnas `date` ("YYYY-MM-DD"): se formatean en UTC porque new Date() las
 // interpreta como medianoche UTC y en Ecuador mostrarían el día anterior.
-export function formatDate(value: string | null | undefined): string {
+export function formatDate(value: string | null | undefined, month: "long" | "short" = "long"): string {
   if (!value) return ""
-  return new Date(value).toLocaleDateString("es-EC", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" })
+  return new Date(value).toLocaleDateString("es-EC", { timeZone: "UTC", year: "numeric", month, day: "numeric" })
 }
