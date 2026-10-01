@@ -12,6 +12,9 @@ import { alternarEstadoUsuario, cambiarRolUsuario, resetearPasswordUsuario } fro
 import { resetDb } from "../support/db-client"
 import { crearCliente } from "../support/fixtures"
 
+// Actor con todos los permisos para los servicios de usuarios.
+const ADMIN = { id: 0, rol: "administrador" }
+
 // lib/auth lee las cookies con next/headers; aquí se controlan a mano. El
 // resto (JWT, BD, guard, adminAction) es el código real contra PGlite.
 const jar = vi.hoisted(() => ({ cookies: {} as Record<string, string> }))
@@ -86,9 +89,9 @@ describe("token_version en los servicios", () => {
     await crearUsuario(r.administrador) // para que el otro no sea el último
     const u = await crearUsuario(r.asistente)
 
-    await alternarEstadoUsuario(u.id)
+    await alternarEstadoUsuario(ADMIN, u.id)
     expect(await tvUsuario(u.id)).toBe(1)
-    await alternarEstadoUsuario(u.id)
+    await alternarEstadoUsuario(ADMIN, u.id)
     expect(await tvUsuario(u.id)).toBe(2)
   })
 
@@ -96,9 +99,9 @@ describe("token_version en los servicios", () => {
     const r = await crearRoles()
     const u = await crearUsuario(r.asistente)
 
-    await cambiarRolUsuario(u.id, r.asistente)
+    await cambiarRolUsuario(ADMIN, u.id, r.asistente)
     expect(await tvUsuario(u.id)).toBe(0)
-    await cambiarRolUsuario(u.id, r.soporte)
+    await cambiarRolUsuario(ADMIN, u.id, r.soporte)
     expect(await tvUsuario(u.id)).toBe(1)
   })
 
@@ -106,7 +109,7 @@ describe("token_version en los servicios", () => {
     const r = await crearRoles()
     const u = await crearUsuario(r.asistente)
 
-    await resetearPasswordUsuario(u.id, "nueva-clave")
+    await resetearPasswordUsuario(ADMIN, u.id, "nueva-clave")
     expect(await tvUsuario(u.id)).toBe(1)
   })
 
@@ -137,12 +140,12 @@ describe("revocación de sesiones del admin", () => {
     await loginAdmin(u, "asistente")
     expect(await getCurrentUser()).not.toBeNull()
 
-    await alternarEstadoUsuario(u.id)
+    await alternarEstadoUsuario(ADMIN, u.id)
     expect(await getCurrentUser()).toBeNull()
     expect((await rutaAdmin(request, context)).status).toBe(401)
     expect(await accionAdmin()).toEqual({ ok: false, error: "Tu sesión expiró. Vuelve a iniciar sesión." })
 
-    await alternarEstadoUsuario(u.id)
+    await alternarEstadoUsuario(ADMIN, u.id)
     expect(await getCurrentUser()).toBeNull()
   })
 
@@ -151,12 +154,12 @@ describe("revocación de sesiones del admin", () => {
     const u = await crearUsuario(r.asistente)
 
     await loginAdmin(u, "asistente")
-    await cambiarRolUsuario(u.id, r.soporte)
+    await cambiarRolUsuario(ADMIN, u.id, r.soporte)
     expect(await getCurrentUser()).toBeNull()
 
     await loginAdmin(u, "soporte")
     expect(await getCurrentUser()).not.toBeNull()
-    await resetearPasswordUsuario(u.id, "otra-clave")
+    await resetearPasswordUsuario(ADMIN, u.id, "otra-clave")
     expect(await getCurrentUser()).toBeNull()
   })
 })

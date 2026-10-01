@@ -31,7 +31,7 @@ export async function crearUsuarioAction(input: unknown) {
 export async function cambiarRolUsuarioAction(rawId: number, input: unknown) {
   return adminAction({ permission: { module: "usuarios", action: "update" }, error: "Error al cambiar rol" }, async (user) => {
     const { rol_id } = cambiarRolBody.parse(input)
-    const usuario = await cambiarRolUsuario(usuarioId.parse(rawId), rol_id)
+    const usuario = await cambiarRolUsuario(user, usuarioId.parse(rawId), rol_id)
     await registrarAuditoria({
       usuario_id: user.id,
       accion: "CAMBIO_ROL",
@@ -48,7 +48,7 @@ export async function resetearPasswordUsuarioAction(rawId: number, input: unknow
     async (user) => {
       const id = usuarioId.parse(rawId)
       const { nueva_password } = resetPasswordBody.parse(input)
-      await resetearPasswordUsuario(id, nueva_password)
+      await resetearPasswordUsuario(user, id, nueva_password)
       await registrarAuditoria({
         usuario_id: user.id,
         accion: "RESET_PASSWORD",
@@ -65,7 +65,7 @@ export async function alternarEstadoUsuarioAction(rawId: number) {
     { permission: { module: "usuarios", action: "update" }, error: "Error al cambiar estado del usuario" },
     async (user) => {
       const id = usuarioId.parse(rawId)
-      const activo = await alternarEstadoUsuario(id)
+      const activo = await alternarEstadoUsuario(user, id)
       await registrarAuditoria({
         usuario_id: user.id,
         accion: activo ? "ACTIVAR_USUARIO" : "DESACTIVAR_USUARIO",
