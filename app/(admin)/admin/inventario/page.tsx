@@ -1,8 +1,8 @@
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { BackButton } from "@/components/ui/back-button"
-import { InventarioFiltros } from "@/components/admin/inventario/inventario-filtros"
 import { InventarioTabs } from "@/components/admin/inventario/inventario-tabs"
+import { ListFilters } from "@/components/admin/list-filters"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
 import { listarProductos, listarServicios } from "@/server/services/catalogo"
@@ -48,7 +48,10 @@ export default async function InventarioPage({ searchParams }: { searchParams: S
           </Alert>
         )}
 
-        <InventarioFiltros canManage={canManage} />
+        <ListFilters
+          placeholder="Buscar productos o servicios..."
+          toggle={canManage ? { id: "show-inactive", param: "inactivos", label: "Mostrar inactivos" } : undefined}
+        />
 
         <InventarioTabs productos={productos} servicios={servicios} canManage={canManage} />
       </div>
