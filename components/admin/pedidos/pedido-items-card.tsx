@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { agregarItemAction, editarItemAction, eliminarItemAction } from "@/app/(admin)/admin/pedidos/actions"
 import { formatCurrency } from "@/components/admin/format"
-import { IVA_PORCENTAJE } from "@/lib/iva"
+import { calcularTotales, IVA_PORCENTAJE } from "@/lib/iva"
 import type { PedidoItem, ProductoOpcion, ServicioOpcion } from "./types"
 
 interface PedidoItemsCardProps {
@@ -58,10 +58,11 @@ export function PedidoItemsCard({
 
   const currentItems: (ProductoOpcion | ServicioOpcion)[] = itemForm.item_tipo === "producto" ? productos : servicios
 
-  // Totales del pedido en centavos: subtotales sin IVA + IVA por línea (lo
-  // mismo que guarda pedidos.total).
-  const subtotalCents = items.reduce((acc, item) => acc + Math.round(Number(item.subtotal) * 100), 0)
-  const ivaCents = items.reduce((acc, item) => acc + Math.round(Number(item.iva) * 100), 0)
+  // Totales del pedido en centavos, con el IVA sobre la base gravada: el
+  // mismo cálculo (lib/iva.ts) que guarda pedidos.total.
+  const totales = calcularTotales(
+    items.map((item) => ({ subtotalCents: Math.round(Number(item.subtotal) * 100), grabaIva: !!item.graba_iva })),
+  )
 
   const resetItemForm = () => {
     setItemForm(emptyForm)
@@ -321,15 +322,15 @@ export function PedidoItemsCard({
             <div className="ml-auto w-full max-w-xs space-y-1 pt-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatCurrency(subtotalCents / 100)}</span>
+                <span>{formatCurrency(totales.subtotal / 100)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">IVA {IVA_PORCENTAJE} %</span>
-                <span>{formatCurrency(ivaCents / 100)}</span>
+                <span>{formatCurrency(totales.iva / 100)}</span>
               </div>
               <div className="flex justify-between border-t pt-1 text-base font-bold">
                 <span>Total</span>
-                <span>{formatCurrency((subtotalCents + ivaCents) / 100)}</span>
+                <span>{formatCurrency(totales.total / 100)}</span>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ import { eq, sql, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
 import { anioNegocio } from "@/lib/fechas"
 import { HttpError } from "@/lib/http"
-import { ivaCents } from "@/lib/iva"
+import { calcularTotales, ivaCents } from "@/lib/iva"
 import { can } from "@/server/auth/guard"
 import type { Executor } from "@/server/db/client"
 import { pagos, pedidoItems, pedidos } from "@/server/db/schema"
@@ -72,8 +72,10 @@ export async function saldoPendienteCents(ex: Executor, pedido: { id: number; to
 }
 
 // Columnas de dinero de una línea de pedido: subtotal = precio × cantidad
-// (sin IVA) y el IVA de la línea redondeado a centavos (lib/iva.ts). graba_iva
-// se copia del producto/servicio al agregar la línea y no cambia después.
+// (sin IVA) y el IVA de la línea redondeado a centavos (lib/iva.ts), que es
+// solo informativo: el IVA del pedido se calcula sobre la base gravada.
+// graba_iva se copia del producto/servicio al agregar la línea y no cambia
+// después.
 export function montosDeLinea(precioCents: number, cantidad: number, grabaIva: boolean) {
   const subtotal = Math.round(precioCents * cantidad)
   return {
@@ -84,14 +86,21 @@ export function montosDeLinea(precioCents: number, cantidad: number, grabaIva: b
   }
 }
 
-// total del pedido = Σ subtotales + Σ IVA de las líneas. Es lo que se cobra
-// (pagos, saldo, cierre) y lo que suma la factura.
+// Totales (lib/iva.ts calcularTotales) a partir de las líneas guardadas.
+export function totalesDeLineas(lineas: { subtotal: string | null; graba_iva: boolean | null }[]) {
+  return calcularTotales(lineas.map((l) => ({ subtotalCents: toCents(l.subtotal), grabaIva: !!l.graba_iva })))
+}
+
+// total del pedido = Σ subtotales + IVA sobre la base gravada
+// (round(Σ subtotales que gravan × 15 %)). Es lo que se cobra (pagos, saldo,
+// cierre) y lo que suma la factura.
 export async function recalcularTotalPedido(ex: Executor, pedidoId: number): Promise<void> {
+  const lineas = await ex
+    .select({ subtotal: pedidoItems.subtotal, graba_iva: pedidoItems.graba_iva })
+    .from(pedidoItems)
+    .where(eq(pedidoItems.pedido_id, pedidoId))
   await ex
     .update(pedidos)
-    .set({
-      total: sql`(SELECT COALESCE(SUM(${pedidoItems.subtotal} + ${pedidoItems.iva}), 0) FROM ${pedidoItems} WHERE ${pedidoItems.pedido_id} = ${pedidoId})`,
-      updated_at: sql`CURRENT_TIMESTAMP`,
-    })
+    .set({ total: fromCents(totalesDeLineas(lineas).total), updated_at: sql`CURRENT_TIMESTAMP` })
     .where(eq(pedidos.id, pedidoId))
 }

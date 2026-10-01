@@ -59,8 +59,9 @@ Las tres áreas comparten la base de datos y los route handlers de `app/api/`.
 
 - Los precios del catálogo **no incluyen IVA**. Cada producto y servicio (también "Envío") tiene el switch "Grava IVA" (`graba_iva`, por defecto activo).
 - La tarifa (15 %) vive solo en `lib/iva.ts`, que usan los pedidos, la factura, el checkout y las facturas de proveedores.
-- Cada línea del pedido copia el flag al agregarse y guarda su IVA redondeado a centavos. El **total del pedido incluye el IVA**: cobros, saldo, cierre y factura cuadran con el mismo número.
-- La factura desglosa Subtotal 15 %, Subtotal 0 %, IVA 15 % y Total (= `pedidos.total`). El dashboard y los reportes suman `pedidos.total`, con IVA.
+- El IVA del pedido se calcula **sobre la base gravada** (método compatible con el SRI): IVA = round(Σ subtotales de las líneas que gravan × 15 %), en centavos y half-up. `pedidos.total` = Σ subtotales + ese IVA. Una sola función pura, `calcularTotales` en `lib/iva.ts` (→ subtotal, subtotal 0 %, base gravada, IVA, total), la usan `recalcularTotalPedido`, el checkout del catálogo, la factura, el carrito, el modal de checkout y el detalle del pedido en el admin, así cliente y servidor calculan igual.
+- Cada línea del pedido copia el flag al agregarse y guarda en `pedido_items.iva` su IVA redondeado por línea, **solo como dato informativo**: la suma de esos valores puede diferir en centavos del IVA del pedido. El **total del pedido incluye el IVA**: cobros, saldo, cierre y factura cuadran con el mismo número.
+- La factura desglosa Subtotal 15 % (base gravada), Subtotal 0 %, IVA 15 % (= round(base × 0,15)) y Total (= `pedidos.total`, que `generarFactura` verifica). El dashboard y los reportes suman `pedidos.total`, con IVA.
 - Los pedidos anteriores a la migración `0003` quedaron sin IVA en sus líneas y conservan su total histórico.
 
 ## Seguridad
