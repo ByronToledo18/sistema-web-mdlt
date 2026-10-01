@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDateTime } from "@/components/admin/format"
 import { PedidoEnviosCard } from "@/components/admin/pedidos/pedido-envios-card"
+import { estadoColors, estadoLabels } from "@/components/admin/pedidos/estado"
 import { PedidoEstadoSelect } from "@/components/admin/pedidos/pedido-estado-select"
 import { PedidoFacturaButton } from "@/components/admin/pedidos/pedido-factura-button"
 import { PedidoItemsCard } from "@/components/admin/pedidos/pedido-items-card"
@@ -18,22 +19,6 @@ import { listarEnvios } from "@/server/services/envios"
 import { listarPagos } from "@/server/services/pagos"
 import { obtenerFactura, obtenerPedido } from "@/server/services/pedidos"
 import { idParams } from "@/server/validators/common"
-
-const estadoColors: Record<string, string> = {
-  recibido: "bg-blue-500",
-  en_proceso: "bg-yellow-500",
-  terminado: "bg-green-500",
-  anulado: "bg-red-500",
-  entregado: "bg-purple-500",
-}
-
-const estadoLabels: Record<string, string> = {
-  recibido: "Recibido",
-  en_proceso: "En Proceso",
-  terminado: "Terminado",
-  anulado: "Anulado",
-  entregado: "Entregado",
-}
 
 async function cargarPedido(id: number) {
   try {

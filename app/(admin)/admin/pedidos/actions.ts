@@ -7,13 +7,14 @@ import { eliminarPago, obtenerPago, registrarPago } from "@/server/services/pago
 import {
   actualizarEstadoPedido,
   agregarItem,
+  crearPedido,
   editarItem,
   eliminarItem,
   generarFactura,
 } from "@/server/services/pedidos"
 import { id } from "@/server/validators/common"
 import { registrarPagoBody } from "@/server/validators/pagos"
-import { actualizarEstadoBody, agregarItemBody, editarItemBody } from "@/server/validators/pedidos"
+import { actualizarEstadoBody, agregarItemBody, crearPedidoBody, editarItemBody } from "@/server/validators/pedidos"
 
 // Cada mutación del detalle refresca el detalle y el listado (total, estado).
 function revalidarPedido(pedidoId: number) {
@@ -23,6 +24,15 @@ function revalidarPedido(pedidoId: number) {
 
 const pedidoId = id("Pedido")
 const itemId = id("Item")
+
+// Devuelve el id para que el cliente abra el detalle del pedido nuevo.
+export async function crearPedidoAction(input: unknown) {
+  return adminAction({ permission: { module: "pedidos", action: "create" }, error: "Error al crear pedido" }, async () => {
+    const pedido = await crearPedido(crearPedidoBody.parse(input).cliente_id)
+    revalidatePath("/admin/pedidos")
+    return { id: pedido.id }
+  })
+}
 
 export async function cambiarEstadoPedidoAction(rawPedidoId: number, input: unknown) {
   return adminAction({ permission: { module: "pedidos", action: "update" }, error: "Error al actualizar pedido" }, async () => {

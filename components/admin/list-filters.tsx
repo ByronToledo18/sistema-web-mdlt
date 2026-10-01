@@ -1,5 +1,6 @@
 "use client"
 
+import type React from "react"
 import { useState } from "react"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -11,10 +12,13 @@ interface ListFiltersProps {
   placeholder: string
   // Switch opcional que escribe `param=1` en la URL (p. ej. "Mostrar inactivos").
   toggle?: { id: string; param: string; label: string }
+  // Controles extra a la derecha de la búsqueda (p. ej. un UrlSelectFilter).
+  children?: React.ReactNode
+  className?: string
 }
 
 // Búsqueda (?q=) y switch de los listados del admin.
-export function ListFilters({ placeholder, toggle }: ListFiltersProps) {
+export function ListFilters({ placeholder, toggle, children, className = "flex items-center gap-4" }: ListFiltersProps) {
   const search = useDebouncedSearch()
   const { searchParams, setFilters } = useUrlFilters()
   // Estado local para que el switch responda al instante; la URL se
@@ -22,7 +26,7 @@ export function ListFilters({ placeholder, toggle }: ListFiltersProps) {
   const [checked, setChecked] = useState(toggle ? searchParams.get(toggle.param) === "1" : false)
 
   return (
-    <div className="flex items-center gap-4">
+    <div className={className}>
       <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -47,6 +51,7 @@ export function ListFilters({ placeholder, toggle }: ListFiltersProps) {
           </Label>
         </div>
       )}
+      {children}
     </div>
   )
 }
