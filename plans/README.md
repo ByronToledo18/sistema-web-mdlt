@@ -22,9 +22,9 @@ No plan depends on another; they can be executed in any order or in parallel by 
 
 - **LOW — `components/ui/switch.tsx:16`** — `transition-all` on the shared Switch primitive. Real impact is low (only `background-color`/`transform` actually change), so it didn't earn a full plan. One-line fix when someone's already in that file: change `transition-all` to `transition-[background-color,transform]`.
 - **Missed opportunities** (additive, not corrective — no plan written, just flagged for whoever picks up delight/polish work next):
-  - `app/portal/login/page.tsx`, `app/portal/registro/page.tsx` — error/success `Alert`s pop in with no transition.
+  - `app/(portal)/portal/login/page.tsx`, `app/(portal)/portal/registro/page.tsx` — error/success `Alert`s pop in with no transition.
   - `app/admin/pedidos/[id]/page.tsx` — newly added pedido items appear in the table with no highlight/confirmation.
-  - `app/portal/pedidos/page.tsx` — order list cards could use a 30–80ms stagger on load (rarely-visited page, safe to add delight).
+  - `app/(portal)/portal/pedidos/page.tsx` — order list cards could use a 30–80ms stagger on load (rarely-visited page, safe to add delight).
 
 ## Reconcile
 
