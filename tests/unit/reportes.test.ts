@@ -2,6 +2,7 @@ import ExcelJS from "exceljs"
 import { PDFDocument } from "pdf-lib"
 import { describe, expect, test } from "vitest"
 import { reporteExcel } from "@/server/reportes/excel"
+import { reporteNomina } from "@/server/reportes/nomina"
 import { reportePagos } from "@/server/reportes/pagos"
 import { reportePdf } from "@/server/reportes/pdf"
 import { fechaCalendario, seccion, type Reporte } from "@/server/reportes/tipos"
@@ -128,5 +129,34 @@ describe("reportePagos", () => {
       { metodo: "efectivo", cantidad: 2, total: 14.5 },
       { metodo: "Sin especificar", cantidad: 1, total: 5 },
     ])
+  })
+})
+
+describe("reporteNomina", () => {
+  const base = { persona_id: null, pedido_id: null, pedido_codigo: null, created_at: null }
+
+  test("deducciones en negativo y consolidado por persona", () => {
+    const reporte = reporteNomina(
+      [
+        { ...base, id: 1, persona_tipo: "madre", concepto: "Semana 1", monto: "50.00", fecha: "2026-09-05", tipo: "pago" },
+        { ...base, id: 2, persona_tipo: "madre", concepto: "Adelanto", monto: "10.00", fecha: "2026-09-06", tipo: "deduccion" },
+        { ...base, id: 3, persona_tipo: "costurera_externa", concepto: "Tutús", monto: "80.00", fecha: "2026-09-07", tipo: "pago" },
+        { ...base, id: 4, persona_tipo: "costurera_externa", concepto: "Extra", monto: "5.00", fecha: "2026-09-08", tipo: "bono" },
+      ],
+      "2026-09-01",
+      "2026-09-30",
+    )
+    const [consolidado, detalle] = reporte.secciones
+    expect(consolidado.filas).toEqual([
+      { persona: "Costurera Externa", movimientos: 2, pagado: 85, deducido: 0, neto: 85 },
+      { persona: "Madre de la Emprendedora", movimientos: 2, pagado: 50, deducido: 10, neto: 40 },
+    ])
+    expect(consolidado.totales).toMatchObject({ movimientos: 4, pagado: 135, deducido: 10, neto: 125 })
+    expect(detalle.filas.map((f) => f.monto)).toEqual([50, -10, 80, 5])
+    expect(detalle.totales).toMatchObject({ monto: 125 })
+  })
+
+  test("el filtro de persona aparece en el subtítulo", () => {
+    expect(reporteNomina([], "2026-09-01", "2026-09-30", "madre").subtitulo).toMatch(/^Madre de la Emprendedora · Del 1 /)
   })
 })

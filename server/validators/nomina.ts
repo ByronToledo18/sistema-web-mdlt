@@ -13,6 +13,15 @@ export const nominaQuery = z.object({
 })
 export type FiltrosNomina = z.output<typeof nominaQuery>
 
+export const reporteNominaQuery = z
+  .object({
+    fecha_desde: isoDate("Fechas de inicio y fin son requeridas"),
+    fecha_hasta: isoDate("Fechas de inicio y fin son requeridas"),
+    persona_tipo: z.string().optional(),
+    format: z.enum(["xlsx", "pdf"]).default("xlsx"),
+  })
+  .refine((q) => q.fecha_desde <= q.fecha_hasta, "La fecha de inicio debe ser menor a la fecha de fin")
+
 export const registrarMovimientoBody = z.object({
   persona_tipo: requiredText(REQUERIDOS),
   concepto: requiredText(REQUERIDOS),

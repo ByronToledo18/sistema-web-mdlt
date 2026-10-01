@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, count, desc, eq, getTableColumns, gte, lte, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, getTableColumns, gte, lte, sql } from "drizzle-orm"
 import { HttpError } from "@/lib/http"
 import { db } from "@/server/db/client"
 import { nominaMov, pedidos } from "@/server/db/schema"
@@ -54,6 +54,23 @@ export async function listarMovimientos(filtros: FiltrosNomina) {
     )
     .orderBy(desc(nominaMov.fecha), desc(nominaMov.id))
     .limit(100)
+}
+
+// Todos los movimientos de un rango (fecha es `date`: ambos días incluidos),
+// sin el límite de listarMovimientos. Para los reportes.
+export async function movimientosPorRango(fecha_desde: string, fecha_hasta: string, persona_tipo?: string) {
+  return db
+    .select({ ...getTableColumns(nominaMov), pedido_codigo: pedidos.codigo })
+    .from(nominaMov)
+    .leftJoin(pedidos, eq(nominaMov.pedido_id, pedidos.id))
+    .where(
+      and(
+        gte(nominaMov.fecha, fecha_desde),
+        lte(nominaMov.fecha, fecha_hasta),
+        persona_tipo ? eq(nominaMov.persona_tipo, persona_tipo) : undefined,
+      ),
+    )
+    .orderBy(asc(nominaMov.fecha), asc(nominaMov.id))
 }
 
 // Consolidado por persona_tipo: pagos y bonos menos deducciones.

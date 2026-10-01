@@ -6,6 +6,7 @@ import { formatCurrency, formatDate } from "@/components/admin/format"
 import { EliminarMovimientoButton } from "@/components/admin/nomina/eliminar-movimiento-button"
 import { personaTipoLabels } from "@/components/admin/nomina/personas"
 import { RegistrarMovimientoDialog } from "@/components/admin/nomina/registrar-movimiento-dialog"
+import { ReporteNominaDialog } from "@/components/admin/nomina/reporte-nomina-dialog"
 import { UrlSelectFilter } from "@/components/admin/url-select-filter"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
@@ -46,7 +47,10 @@ export default async function NominaPage({ searchParams }: { searchParams: Searc
             </div>
           </div>
 
-          {can(user, "nomina", "create") && <RegistrarMovimientoDialog />}
+          <div className="flex items-center gap-2">
+            <ReporteNominaDialog persona={persona} />
+            {can(user, "nomina", "create") && <RegistrarMovimientoDialog />}
+          </div>
         </div>
 
         {consolidado.length > 0 && (
