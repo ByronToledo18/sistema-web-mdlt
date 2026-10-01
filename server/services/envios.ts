@@ -105,7 +105,7 @@ export async function obtenerEnvio(id: number) {
 export async function crearEnvio(user: UserPayload, input: { pedido_id: number; costo: number }) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, input.pedido_id)
-    assertPedidoEditable(user, pedido.estado, "No se pueden crear envíos para un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden crear envíos para un pedido terminado, anulado o entregado")
 
     const servicioEnvio = await buscarServicioEnvio(tx)
     if (!servicioEnvio) {

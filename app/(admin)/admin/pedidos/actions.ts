@@ -35,10 +35,10 @@ export async function crearPedidoAction(input: unknown) {
 }
 
 export async function cambiarEstadoPedidoAction(rawPedidoId: number, input: unknown) {
-  return adminAction({ permission: { module: "pedidos", action: "update" }, error: "Error al actualizar pedido" }, async () => {
+  return adminAction({ permission: { module: "pedidos", action: "update" }, error: "Error al actualizar pedido" }, async (user) => {
     const id = pedidoId.parse(rawPedidoId)
     const { estado } = actualizarEstadoBody.parse(input)
-    await actualizarEstadoPedido(id, estado)
+    await actualizarEstadoPedido(user, id, estado)
     revalidarPedido(id)
   })
 }

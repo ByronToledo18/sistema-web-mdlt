@@ -51,7 +51,7 @@ export interface RegistrarPago {
 export async function registrarPago(user: UserPayload, input: RegistrarPago) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, input.pedido_id)
-    assertPedidoEditable(user, pedido.estado, "No se pueden registrar pagos en un pedido terminado o anulado")
+    assertPedidoEditable(user, pedido.estado, "No se pueden registrar pagos en un pedido terminado, anulado o entregado")
 
     const [{ pagado }] = await tx
       .select({ pagado: sum(pagos.monto) })
