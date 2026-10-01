@@ -6,13 +6,10 @@ import { generarNumeroGuia } from "@/lib/envios"
 // GET - Listar pagos con filtros
 export async function GET(request: NextRequest) {
   try {
-    console.log("[v0] GET pagos - Start")
     await requireAuth(["administrador", "asistente"])
-    console.log("[v0] GET pagos - Auth passed")
 
     const { searchParams } = new URL(request.url)
     const pedidoId = searchParams.get("pedido_id")
-    console.log("[v0] GET pagos - pedidoId:", pedidoId)
 
     let pagos
     if (pedidoId) {
@@ -34,7 +31,6 @@ export async function GET(request: NextRequest) {
       `
     }
 
-    console.log("[v0] GET pagos - Query result:", pagos.length)
     return NextResponse.json({ pagos })
   } catch (error: any) {
     console.error("[v0] Get pagos error:", error)
@@ -102,11 +98,7 @@ export async function POST(request: NextRequest) {
     const newTotalPagado = totalPagado + monto
     const saldoPendiente = totalPedido - newTotalPagado
 
-    console.log(`[v0] Payment registered. New balance: ${saldoPendiente}`)
-
     if (saldoPendiente === 0) {
-      console.log(`[v0] Balance is 0, checking for shipping items...`)
-
       // Check if there's a shipping item
       const shippingItems = await sql`
         SELECT pi.*, s.nombre
@@ -117,8 +109,6 @@ export async function POST(request: NextRequest) {
         AND s.nombre = 'Envío'
       `
 
-      console.log(`[v0] Found ${shippingItems.length} shipping items`)
-
       if (shippingItems.length > 0) {
         // Check if shipment already exists
         const existingShipments = await sql`
@@ -128,7 +118,6 @@ export async function POST(request: NextRequest) {
         `
 
         const shipmentCount = Number.parseInt(existingShipments[0].count)
-        console.log(`[v0] Existing shipments for order ${pedido_id}: ${shipmentCount}`)
 
         if (shipmentCount === 0) {
           // Create shipment automatically
@@ -136,9 +125,7 @@ export async function POST(request: NextRequest) {
           const shippingCost = Number.parseFloat(shippingItem.precio_unitario)
           const guia = await generarNumeroGuia()
 
-          console.log(`[v0] Creating shipment with guia: ${guia}, cost: ${shippingCost}`)
-
-          const shipmentResult = await sql`
+          await sql`
             INSERT INTO envios (pedido_id, guia, costo, estado, fecha_envio)
             VALUES (
               ${pedido_id},
@@ -147,16 +134,8 @@ export async function POST(request: NextRequest) {
               'pendiente',
               CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil'
             )
-            RETURNING *
           `
-
-          console.log(`[v0] Shipment created successfully:`, shipmentResult[0])
-          console.log(`[v0] Auto-created shipment ${guia} for order ${pedido_id} after payment completion`)
-        } else {
-          console.log(`[v0] Shipment already exists for order ${pedido_id}, skipping creation`)
         }
-      } else {
-        console.log(`[v0] No shipping items found for order ${pedido_id}`)
       }
     }
 

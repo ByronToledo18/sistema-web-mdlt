@@ -102,8 +102,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         SET stock = stock + ${cantidadInt}
         WHERE id = ${item.item_id}
       `
-
-      console.log(`[v0] Restored ${cantidadInt} units to product ${item.item_id}`)
     }
 
     const result = await sql`DELETE FROM pedido_items WHERE id = ${itemId} AND pedido_id = ${pedidoId} RETURNING *`

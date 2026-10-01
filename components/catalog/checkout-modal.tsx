@@ -76,7 +76,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       const response = await fetch("/api/portal/me")
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Client data from API:", data.cliente)
         setIsClientLoggedIn(true)
         setClientData(data.cliente)
         setFormData({
@@ -86,10 +85,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           telefono: data.cliente.telefono || "",
           email: data.cliente.email || "",
           direccion: data.cliente.direccion || "",
-        })
-        console.log("[v0] Form data after setting:", {
-          cedula: data.cliente.cedula,
-          nombre: data.cliente.nombre,
         })
       }
     } catch (error) {

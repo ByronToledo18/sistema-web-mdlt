@@ -66,22 +66,17 @@ export function Header({ userName, userRole, onMenuClick }: HeaderProps) {
 
   const fetchTickets = async () => {
     try {
-      console.log("[v0] Fetching tickets from /api/soporte/tickets?estado=pendiente")
       const response = await fetch("/api/soporte/tickets?estado=pendiente")
-      console.log("[v0] Tickets response status:", response.status)
 
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Tickets data:", data)
         setTickets(data)
         setUnreadCount(data.length)
       } else {
-        console.log("[v0] Tickets endpoint returned error:", response.status)
         setTickets([])
         setUnreadCount(0)
       }
     } catch (error) {
-      console.log("[v0] Error fetching tickets (table may not exist yet):", error)
       setTickets([])
       setUnreadCount(0)
     }

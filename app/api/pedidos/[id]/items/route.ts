@@ -74,8 +74,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         SET stock = stock - ${cantidadInt}
         WHERE id = ${item_id}
       `
-
-      console.log(`[v0] Deducted ${cantidadInt} units from product ${item_id}`)
     }
 
     const subtotal = cantidadInt * precio_unitario

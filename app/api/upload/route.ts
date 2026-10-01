@@ -34,8 +34,6 @@ export async function POST(request: NextRequest) {
       access: "public",
     })
 
-    console.log("[v0] Image uploaded successfully:", blob.url)
-
     return NextResponse.json({
       url: blob.url,
       filename: file.name,

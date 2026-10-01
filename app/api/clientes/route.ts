@@ -5,9 +5,7 @@ import { requireAuth, hashPassword } from "@/lib/auth"
 // GET - Listar todos los clientes
 export async function GET(request: NextRequest) {
   try {
-    console.log("[v0] Starting GET clientes")
     await requireAuth()
-    console.log("[v0] Auth passed")
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
@@ -27,11 +25,8 @@ export async function GET(request: NextRequest) {
 
     queryText += ` ORDER BY created_at DESC`
 
-    console.log("[v0] About to execute query")
     const clientes = await executeQuery(queryText, params)
-    console.log("[v0] Query executed, result length:", clientes?.length)
 
-    console.log("[v0] Returning response")
     return NextResponse.json({ clientes })
   } catch (error: any) {
     console.error("[v0] Get clientes error:", error)

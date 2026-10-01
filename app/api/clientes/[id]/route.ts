@@ -28,8 +28,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
     const body = await request.json()
 
-    console.log("[v0] PUT clientes body:", JSON.stringify(body))
-
     const { nombre, cedula, telefono, email, direccion, notas } = body
 
     if (!nombre) {
@@ -46,8 +44,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    console.log("[v0] About to UPDATE cliente with:", { nombre, cedula, telefono, email, direccion, notas })
-
     const result = await sql`
       UPDATE clientes
       SET nombre = ${nombre}, cedula = ${cedula || null}, telefono = ${telefono || null}, email = ${email || null}, 
@@ -55,8 +51,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       WHERE id = ${id}
       RETURNING *
     `
-
-    console.log("[v0] Cliente updated successfully:", result[0])
 
     if (result.length === 0) {
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 })

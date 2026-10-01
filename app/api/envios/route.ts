@@ -7,13 +7,10 @@ import { actualizarTotalPedido } from "@/lib/pedidos"
 // GET - Listar envíos
 export async function GET(request: NextRequest) {
   try {
-    console.log("[v0] GET envios - Start")
     await requireAuth(["administrador", "asistente"])
-    console.log("[v0] GET envios - Auth passed")
 
     const { searchParams } = new URL(request.url)
     const pedidoId = searchParams.get("pedido_id")
-    console.log("[v0] GET envios - pedidoId:", pedidoId)
 
     let envios
     if (pedidoId) {
@@ -35,7 +32,6 @@ export async function GET(request: NextRequest) {
       `
     }
 
-    console.log("[v0] GET envios - Query result:", envios.length)
     return NextResponse.json({ envios })
   } catch (error: any) {
     console.error("[v0] Get envios error:", error)
