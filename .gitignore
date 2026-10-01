@@ -28,6 +28,7 @@ yarn-error.log*
 
 # Claude Code project-level skills/config - tooling, not app code
 /.claude/
+/.agents/
 /skills-lock.json
 
 # typescript

@@ -37,29 +37,29 @@ const MODULES = Object.keys(ESPERADO) as Module[]
 
 describe("matriz de permisos (rol × módulo × acción)", () => {
   const casos = ROLES.flatMap((rol) =>
-    MODULES.flatMap((module) =>
-      ACTIONS.map((action) => ({ rol, module, action, permitido: ESPERADO[module][rol].includes(LETRA[action]) })),
+    MODULES.flatMap((modulo) =>
+      ACTIONS.map((action) => ({ rol, modulo, action, permitido: ESPERADO[modulo][rol].includes(LETRA[action]) })),
     ),
   )
 
-  test.each(casos)("$rol · $module · $action → $permitido", ({ rol, module, action, permitido }) => {
-    expect(hasPermission(rol, module, action)).toBe(permitido)
+  test.each(casos)("$rol · $modulo · $action → $permitido", ({ rol, modulo, action, permitido }) => {
+    expect(hasPermission(rol, modulo, action)).toBe(permitido)
   })
 
   test("ROLE_PERMISSIONS no tiene módulos fuera de la matriz", () => {
     for (const rol of ROLES) {
-      for (const module of Object.keys(ROLE_PERMISSIONS[rol])) {
-        expect(MODULES).toContain(module)
+      for (const modulo of Object.keys(ROLE_PERMISSIONS[rol])) {
+        expect(MODULES).toContain(modulo)
       }
     }
   })
 
   test("un rol desconocido no tiene ningún permiso", () => {
-    for (const module of MODULES) {
+    for (const modulo of MODULES) {
       for (const action of ACTIONS) {
-        expect(hasPermission("cliente", module, action)).toBe(false)
-        expect(hasPermission("", module, action)).toBe(false)
-        expect(hasPermission("toString", module, action)).toBe(false)
+        expect(hasPermission("cliente", modulo, action)).toBe(false)
+        expect(hasPermission("", modulo, action)).toBe(false)
+        expect(hasPermission("toString", modulo, action)).toBe(false)
       }
     }
   })
@@ -92,8 +92,8 @@ describe("canAccessRoute (middleware y sidebar)", () => {
   })
 
   test("cada página exige leer un módulo existente", () => {
-    for (const module of Object.values(ROUTE_MODULES)) {
-      if (module !== null) expect(MODULES).toContain(module)
+    for (const modulo of Object.values(ROUTE_MODULES)) {
+      if (modulo !== null) expect(MODULES).toContain(modulo)
     }
   })
 })

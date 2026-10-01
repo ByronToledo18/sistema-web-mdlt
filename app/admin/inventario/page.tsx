@@ -149,7 +149,7 @@ export default function InventarioPage() {
       setDialogOpen(false)
       resetForms()
       fetchData()
-    } catch (err) {
+    } catch {
       setError("Error al guardar producto")
     }
   }
@@ -181,7 +181,7 @@ export default function InventarioPage() {
       setDialogOpen(false)
       resetForms()
       fetchData()
-    } catch (err) {
+    } catch {
       setError("Error al guardar servicio")
     }
   }
@@ -289,7 +289,7 @@ export default function InventarioPage() {
       }
 
       setImagePreview(data.url)
-    } catch (err) {
+    } catch {
       setError("Error al subir la imagen")
     } finally {
       setUploading(false)

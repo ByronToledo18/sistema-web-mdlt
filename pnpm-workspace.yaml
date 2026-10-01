@@ -6,5 +6,5 @@ allowBuilds:
   # Sin scripts de build relevantes (no-op u opcionales)
   '@google/genai': false
   bufferutil: false
-  esbuild: false
   protobufjs: false
+  esbuild: false

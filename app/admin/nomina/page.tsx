@@ -148,7 +148,7 @@ export default function NominaPage() {
       resetForm()
       fetchMovimientos()
       fetchConsolidado()
-    } catch (err) {
+    } catch {
       setError("Error al registrar el movimiento")
     }
   }
