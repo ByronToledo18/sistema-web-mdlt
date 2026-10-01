@@ -1,85 +1,25 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { verifyPassword, generatePortalToken } from "@/lib/auth"
-import { cookies } from "next/headers"
+import { NextResponse } from "next/server"
+import { generatePortalToken } from "@/lib/jwt"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
-import { apiError } from "@/lib/http"
-import { logger } from "@/lib/logger"
+import { setPortalSessionCookie } from "@/server/auth/cookies"
+import { withErrors } from "@/server/auth/guard"
+import { iniciarSesionCliente } from "@/server/services/portal-auth"
+import { loginBody } from "@/server/validators/auth"
+import { parseBody } from "@/server/validators/common"
 
-export async function POST(request: NextRequest) {
-  try {
-    const limit = await rateLimit(request, RATE_LIMITS.portalLogin)
-    if (!limit.success) {
-      return rateLimitResponse(limit.retryAfter)
-    }
-
-    const { email, password } = await request.json()
-
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email y contraseña son requeridos" }, { status: 400 })
-    }
-
-    // Buscar cliente
-    const result = await sql`
-      SELECT id, nombre, email, hash_password, activo, token_version
-      FROM clientes
-      WHERE email = ${email}
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 })
-    }
-
-    const cliente = result[0]
-
-    // Verificar si el cliente está activo
-    if (!cliente.activo) {
-      return NextResponse.json({ error: "Tu cuenta está desactivada. Contacta al soporte." }, { status: 403 })
-    }
-
-    // Verificar si tiene contraseña configurada
-    if (!cliente.hash_password) {
-      return NextResponse.json(
-        { error: "Tu cuenta no tiene contraseña configurada. Contacta al administrador." },
-        { status: 403 },
-      )
-    }
-
-    // Verificar contraseña
-    const isValid = await verifyPassword(password, cliente.hash_password)
-
-    if (!isValid) {
-      return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 })
-    }
-
-    // Actualizar último acceso
-    await sql`UPDATE clientes SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ${cliente.id}`
-
-    // Generar token JWT
-    const token = await generatePortalToken(
-      { id: cliente.id, email: cliente.email, nombre: cliente.nombre },
-      cliente.token_version,
-    )
-
-    // Establecer cookie
-    const cookieStore = await cookies()
-    cookieStore.set("portal-auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 días
-      path: "/",
-    })
-
-    return NextResponse.json({
-      cliente: {
-        id: cliente.id,
-        nombre: cliente.nombre,
-        email: cliente.email,
-      },
-    })
-  } catch (error) {
-    logger.error("api/portal/login POST", error)
-    return apiError(error, "Error al iniciar sesión")
+export const POST = withErrors({ error: "Error al iniciar sesión" }, async (request) => {
+  const limit = await rateLimit(request, RATE_LIMITS.portalLogin)
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfter)
   }
-}
+
+  const resultado = await iniciarSesionCliente(await parseBody(request, loginBody))
+  if (!resultado.ok) {
+    return NextResponse.json({ error: resultado.error }, { status: resultado.status })
+  }
+
+  const cliente = resultado.sesion
+  await setPortalSessionCookie(await generatePortalToken(cliente, resultado.tokenVersion))
+
+  return NextResponse.json({ cliente: { id: cliente.id, nombre: cliente.nombre, email: cliente.email } })
+})

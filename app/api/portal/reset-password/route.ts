@@ -1,57 +1,17 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { hashPassword } from "@/lib/auth"
+import { NextResponse } from "next/server"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
-import { apiError } from "@/lib/http"
-import { logger } from "@/lib/logger"
+import { withErrors } from "@/server/auth/guard"
+import { resetearPasswordConToken } from "@/server/services/portal-auth"
+import { resetPasswordBody } from "@/server/validators/auth"
+import { parseBody } from "@/server/validators/common"
 
-export async function POST(request: NextRequest) {
-  try {
-    const limit = await rateLimit(request, RATE_LIMITS.resetPassword)
-    if (!limit.success) {
-      return rateLimitResponse(limit.retryAfter)
-    }
-
-    const { token, newPassword } = await request.json()
-
-    if (!token || !newPassword) {
-      return NextResponse.json({ error: "Token y nueva contraseña son requeridos" }, { status: 400 })
-    }
-
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 })
-    }
-
-    const result = await sql`
-      SELECT id, reset_token_expiry
-      FROM clientes
-      WHERE reset_token = ${token}
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Enlace inválido o ya utilizado" }, { status: 400 })
-    }
-
-    const cliente = result[0]
-
-    if (!cliente.reset_token_expiry || new Date(cliente.reset_token_expiry) < new Date()) {
-      return NextResponse.json({ error: "El enlace ha expirado. Solicita uno nuevo." }, { status: 400 })
-    }
-
-    const hashedPassword = await hashPassword(newPassword)
-
-    // Un solo uso: se limpian el token y su expiración al consumirse. También
-    // se invalidan las sesiones abiertas, por si alguien más tenía acceso.
-    await sql`
-      UPDATE clientes
-      SET hash_password = ${hashedPassword}, reset_token = NULL, reset_token_expiry = NULL, debe_cambiar_password = false,
-          token_version = token_version + 1
-      WHERE id = ${cliente.id}
-    `
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    logger.error("api/portal/reset-password POST", error)
-    return apiError(error, "Error al restablecer la contraseña")
+export const POST = withErrors({ error: "Error al restablecer la contraseña" }, async (request) => {
+  const limit = await rateLimit(request, RATE_LIMITS.resetPassword)
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfter)
   }
-}
+
+  const { token, newPassword } = await parseBody(request, resetPasswordBody)
+  await resetearPasswordConToken(token, newPassword)
+  return NextResponse.json({ success: true })
+})

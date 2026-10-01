@@ -1,23 +1,13 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import type { LucideIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Package, Clock, CheckCircle, XCircle, Truck, ArrowLeft } from "lucide-react"
-import { logger } from "@/lib/logger"
+import { requireCliente } from "@/server/auth/session"
+import { listarPedidosDeCliente } from "@/server/services/pedidos"
 
-interface Pedido {
-  id: number
-  codigo: string
-  estado: string
-  total: string
-  fecha_creacion: string
-  created_at: string
-}
-
-const estadoConfig: Record<string, { label: string; color: string; icon: any }> = {
+const estadoConfig: Record<string, { label: string; color: string; icon: LucideIcon }> = {
   recibido: { label: "Recibido", color: "bg-blue-500", icon: Package },
   en_proceso: { label: "En Proceso", color: "bg-yellow-500", icon: Clock },
   terminado: { label: "Terminado", color: "bg-green-500", icon: CheckCircle },
@@ -25,64 +15,30 @@ const estadoConfig: Record<string, { label: string; color: string; icon: any }> 
   anulado: { label: "Anulado", color: "bg-red-500", icon: XCircle },
 }
 
-export default function ClientePedidosPage() {
-  const router = useRouter()
-  const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [loading, setLoading] = useState(true)
+// La fecha se renderiza en el servidor (UTC en Vercel): se fija la zona de
+// la tienda para que coincida con lo que mostraba el navegador.
+function fecha(valor: Date | null) {
+  return valor ? valor.toLocaleDateString("es-EC", { timeZone: "America/Guayaquil" }) : ""
+}
 
-  useEffect(() => {
-    checkAuth()
-  }, [])
-
-  const checkAuth = async () => {
-    try {
-      const response = await fetch("/api/portal/me")
-      if (!response.ok) {
-        router.push("/portal/login")
-        return
-      }
-      fetchPedidos()
-    } catch (error) {
-      logger.error("portal/pedidos: verificar sesión", error)
-      router.push("/portal/login")
-    }
-  }
-
-  const fetchPedidos = async () => {
-    try {
-      const response = await fetch("/api/portal/pedidos")
-      if (response.ok) {
-        const data = await response.json()
-        setPedidos(data.pedidos || [])
-      }
-    } catch (error) {
-      logger.error("portal/pedidos: cargar pedidos", error)
-    } finally {
-      setLoading(false)
-    }
-  }
+// Server Component: la sesión y los pedidos se leen en el servidor, sin
+// fetch en cascada desde el navegador.
+export default async function ClientePedidosPage() {
+  const cliente = await requireCliente()
+  const pedidos = await listarPedidosDeCliente(cliente.id)
 
   const pedidosPendientes = pedidos.filter((p) => p.estado !== "entregado" && p.estado !== "anulado")
   const pedidosHistorial = pedidos.filter((p) => p.estado === "entregado" || p.estado === "anulado")
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Cargando pedidos...</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-6">
-          <Button variant="outline" onClick={() => router.push("/catalogo")} className="mb-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver al Catálogo
+          <Button variant="outline" className="mb-4" asChild>
+            <Link href="/catalogo">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver al Catálogo
+            </Link>
           </Button>
           <h1 className="text-3xl font-bold text-foreground">Mis Pedidos</h1>
           <p className="text-muted-foreground mt-2">Consulta el estado de tus pedidos</p>
@@ -101,7 +57,7 @@ export default function ClientePedidosPage() {
           ) : (
             <div className="grid gap-4">
               {pedidosPendientes.map((pedido) => {
-                const config = estadoConfig[pedido.estado]
+                const config = estadoConfig[pedido.estado ?? ""]
                 const Icon = config.icon
                 return (
                   <Card key={pedido.id} className="hover:shadow-lg transition-shadow">
@@ -119,7 +75,7 @@ export default function ClientePedidosPage() {
                         <div>
                           <p className="text-muted-foreground">Fecha</p>
                           <p className="font-medium text-foreground">
-                            {new Date(pedido.created_at).toLocaleDateString("es-EC")}
+                            {fecha(pedido.created_at)}
                           </p>
                         </div>
                         <div>
@@ -148,7 +104,7 @@ export default function ClientePedidosPage() {
           ) : (
             <div className="grid gap-4">
               {pedidosHistorial.map((pedido) => {
-                const config = estadoConfig[pedido.estado]
+                const config = estadoConfig[pedido.estado ?? ""]
                 const Icon = config.icon
                 return (
                   <Card key={pedido.id} className="opacity-75">
@@ -166,7 +122,7 @@ export default function ClientePedidosPage() {
                         <div>
                           <p className="text-muted-foreground">Fecha</p>
                           <p className="font-medium text-foreground">
-                            {new Date(pedido.created_at).toLocaleDateString("es-EC")}
+                            {fecha(pedido.created_at)}
                           </p>
                         </div>
                         <div>

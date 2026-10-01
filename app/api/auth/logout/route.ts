@@ -1,41 +1,31 @@
-import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { createAuditLog } from "@/lib/audit"
-import { verifyToken } from "@/lib/jwt"
-import type { NextRequest } from "next/server"
-import { logger } from "@/lib/logger"
+import { NextResponse, type NextRequest } from "next/server"
+import { verifyAdminToken } from "@/lib/jwt"
+import { getClientIp } from "@/lib/rate-limit"
+import { ADMIN_COOKIE, clearAdminSessionCookie } from "@/server/auth/cookies"
+import { withErrors } from "@/server/auth/guard"
+import { registrarAuditoria } from "@/server/services/auditoria"
+import { revocarSesionUsuario } from "@/server/services/auth"
 
 export async function GET() {
   return NextResponse.json({ error: "Method not allowed. Use POST to logout." }, { status: 405 })
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const token = request.cookies.get("auth-token")?.value
-    let userId: number | undefined
+// POST - Cierra la sesión: revoca el token (token_version + 1) y borra la cookie.
+export const POST = withErrors({ error: "Error en el servidor" }, async (request: NextRequest) => {
+  const token = request.cookies.get(ADMIN_COOKIE)?.value
+  const decoded = token ? await verifyAdminToken(token) : null
 
-    if (token) {
-      const user = await verifyToken(token)
-      if (user) {
-        userId = user.id
-
-        await createAuditLog({
-          usuario_id: userId,
-          accion: "logout",
-          modulo: "auth",
-          descripcion: `Logout: ${user.email}`,
-          ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || undefined,
-          user_agent: request.headers.get("user-agent") || undefined,
-        })
-      }
-    }
-
-    const cookieStore = await cookies()
-    cookieStore.delete("auth-token")
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    logger.error("api/auth/logout POST", error)
-    return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
+  if (decoded && (await revocarSesionUsuario(decoded.user.id, decoded.tv))) {
+    await registrarAuditoria({
+      usuario_id: decoded.user.id,
+      accion: "logout",
+      modulo: "auth",
+      descripcion: `Logout: ${decoded.user.email}`,
+      ip_address: getClientIp(request),
+      user_agent: request.headers.get("user-agent") ?? undefined,
+    })
   }
-}
+
+  await clearAdminSessionCookie()
+  return NextResponse.json({ success: true })
+})
