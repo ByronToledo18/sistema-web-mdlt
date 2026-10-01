@@ -5,7 +5,10 @@
 // revocación (token_version, usuario activo) la hace lib/auth.ts contra la BD;
 // el middleware solo la usa para redirigir rápido en cada navegación.
 
-import { SignJWT, jwtVerify } from "jose"
+// Subrutas de jose: el índice arrastra JWE (CompressionStream), que el Edge
+// Runtime del middleware no tiene.
+import { SignJWT } from "jose/jwt/sign"
+import { jwtVerify } from "jose/jwt/verify"
 
 export interface UserPayload {
   id: number
