@@ -4,97 +4,115 @@ Sistema de gestión integral para el emprendimiento "El Mundo de las Tutus", esp
 
 ## Características
 
-- **Gestión de Pedidos**: Sistema de seguimiento con ID único (TUTU-YYYY-####)
-- **Control de Inventario**: Productos y servicios con precios variables
-- **Pagos Recibidos**: Registro de abonos y consolidación mensual
-- **Nómina**: Gestión de pagos a costureras
-- **Envíos**: Integración con Servientrega
-- **Autenticación**: Sistema JWT con 3 roles (Administrador, Asistente, Soporte)
+- **Catálogo público** con carrito, checkout y diseño personalizado por IA (Gemini)
+- **Portal de clientes**: registro, login, historial de pedidos, perfil y recuperación de contraseña
+- **Gestión de Pedidos**: seguimiento con ID único (`TUTU-YYYY-####`), ítems, facturas
+- **Inventario**: productos y servicios con precios variables, imágenes en Vercel Blob
+- **Pagos**: registro de abonos, consolidación y reportes mensuales
+- **Envíos**: integración con Servientrega (cuenta mensual y pagos)
+- **Proveedores**: facturas de compra y pagos
+- **Nómina**: pagos a costureras
+- **Soporte**: usuarios, roles, tickets y auditoría
+- **Autenticación**: JWT en cookie httpOnly con 3 roles internos (Administrador, Asistente, Soporte)
 
-## Requisitos Previos
+## Stack
 
-- Node.js 18+
-- PostgreSQL (Neon)
-- Cuenta de Vercel (para deployment)
+Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui · PostgreSQL (Neon) · Vercel Blob · Google Gemini · Vercel
+
+## Requisitos previos
+
+- Node.js 20+
+- pnpm 11 (si Corepack falla, usar `npx pnpm@11.24.0 <comando>`)
+- Base de datos PostgreSQL en Neon
+- Proyecto en Vercel (Blob y, opcionalmente, Upstash Redis)
 
 ## Instalación
 
 1. Clonar el repositorio:
-\`\`\`bash
-git clone https://github.com/ByronToledo18/sistema-web-mdlt.git
-cd sistema-web-mdlt
-\`\`\`
+
+   ```bash
+   git clone https://github.com/ByronToledo18/sistema-web-mdlt.git
+   cd sistema-web-mdlt
+   ```
 
 2. Instalar dependencias:
-\`\`\`bash
-npm install
-\`\`\`
 
-3. Configurar variables de entorno (crear `.env.local`, nunca commitear valores reales):
+   ```bash
+   pnpm install
+   ```
 
-\`\`\`
-DATABASE_URL='postgresql://usuario:contraseña@host/basededatos?sslmode=require'
-JWT_SECRET='<valor aleatorio largo, distinto por ambiente>'
-\`\`\`
+3. Configurar variables de entorno en `.env.local` (nunca commitear valores reales). Con el proyecto vinculado en Vercel se pueden traer con `vercel env pull .env.local`.
 
+   | Variable | Requerida | Uso |
+   |---|---|---|
+   | `DATABASE_URL` | Sí | Conexión a Neon (`postgresql://…?sslmode=require`) |
+   | `JWT_SECRET` | Sí | Firma de los tokens de sesión. Valor aleatorio largo, distinto por ambiente |
+   | `BLOB_READ_WRITE_TOKEN` | Sí | Subida de imágenes a Vercel Blob |
+   | `GEMINI_API_KEY` | Sí (catálogo IA) | Generación de diseños personalizados |
+   | `NEXT_PUBLIC_APP_URL` | Recomendada | URL pública, usada en los enlaces de recuperación de contraseña |
+   | `KV_REST_API_URL` / `KV_REST_API_TOKEN` (o `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) | En producción | Rate limiting. En desarrollo hay un respaldo en memoria |
 
-4. Ejecutar migraciones de base de datos:
-- Ir a la carpeta "Scripts"
-- Ejecutar `001-create-tables.sql`
-- Ejecutar `002-seed-data.sql`
+4. Ejecutar las migraciones SQL de `scripts/` en orden numérico (`001`, `002`, `003`, …) sobre la base de datos.
+   > ⚠️ `scripts/dangerous/` contiene scripts que **borran datos**. No son migraciones.
 
 5. Iniciar el servidor de desarrollo:
-npm run dev
+
+   ```bash
+   pnpm dev
+   ```
 
 ## Crear el usuario administrador
 
-No hay credenciales por defecto. Ejecuta el siguiente script para crear (o resetear) los usuarios internos con una contraseña aleatoria generada en el momento:
+No hay credenciales por defecto. Este script crea (o resetea) los usuarios internos con una contraseña aleatoria:
 
-\`\`\`bash
+```bash
 node --loader ts-node/esm scripts/create-admin.ts
-\`\`\`
+```
 
-La contraseña se imprime una sola vez en la consola — guárdala de inmediato.
+La contraseña se imprime una sola vez en la consola. Guárdala de inmediato.
 
-## Estructura del Proyecto
+## Scripts
 
-├── app/
-│   ├── api/
-│   │   └── auth/          # Endpoints de autenticación
-│   ├── dashboard/         # Panel principal
-│   ├── login/             # Página de login
-│   └── page.tsx           # Página de inicio
-├── lib/
-│   ├── db.ts              # Conexión a base de datos
-│   └── auth.ts            # Utilidades de autenticación
-├── scripts/
-│   ├── 001-create-tables.sql
-│   └── 002-seed-data.sql
-└── middleware.ts          # Protección de rutas
+| Comando | Descripción |
+|---|---|
+| `pnpm dev` | Servidor de desarrollo |
+| `pnpm build` / `pnpm start` | Build y servidor de producción |
+| `pnpm lint` | ESLint |
+| `pnpm typecheck` | Verificación de tipos (`tsc --noEmit`) |
 
-## Plan de Desarrollo (8 Semanas)
+## Estructura del proyecto
 
-- **Semana 1**: Setup base, DB, Auth JWT
-- **Semana 2**: Módulo Clientes + Pedidos
-- **Semana 3**: Productos/Servicios + Items
-- **Semana 4**: Pagos + Consolidación
-- **Semana 5**: Envíos + Servientrega
-- **Semana 6**: Roles y Soporte Técnico
-- **Semana 7**: Catálogo Web + WhatsApp
-- **Semana 8**: Estabilización + Demo
+```
+app/
+├── admin/            # Panel administrativo (dashboard, pedidos, clientes, inventario,
+│                     #   pagos, envíos, proveedores, nómina, soporte)
+├── api/              # Route handlers (auth, catalogo, portal y uno por módulo del admin)
+├── catalogo/         # Catálogo público + diseño por IA
+├── portal/           # Portal de clientes (login, registro, pedidos, perfil, contraseña)
+├── login/            # Login del personal interno
+└── page.tsx          # Redirección al catálogo
+components/
+├── ui/               # Componentes shadcn/ui
+├── catalog/          # Carrito, checkout, mapa
+└── dashboard/        # Header y sidebar del admin
+lib/                  # auth, db, permisos, auditoría y lógica de pedidos/pagos/envíos/nómina
+scripts/              # Migraciones SQL numeradas + utilidades (create-admin)
+docs/                 # Esquema de base de datos
+middleware.ts         # Protección de rutas /admin por rol
+```
 
-## Roles de Usuario
+## Roles de usuario
 
-1. **Administrador**: Acceso completo al sistema
-2. **Asistente**: Gestión operativa de pedidos
-3. **Soporte Técnico**: Mantenimiento y auditoría
+| Rol | Acceso |
+|---|---|
+| **Administrador** | Dashboard, pedidos, clientes, inventario, pagos, envíos, proveedores y nómina |
+| **Asistente** | Dashboard, pedidos, clientes, inventario y envíos |
+| **Soporte técnico** | Dashboard y panel de soporte (usuarios, tickets, auditoría) |
 
-## Base de Datos
+Los clientes del catálogo usan una sesión separada (portal), sin acceso al admin.
 
-El sistema utiliza PostgreSQL con NeonBase con las siguientes tablas principales:
-- roles, usuarios, clientes
-- productos, servicios, pedidos, pedido_items
-- pagos, envios, servientrega_cuenta, servientrega_detalle
-- nomina_mov
+## Base de datos
+
+PostgreSQL en Neon. Tablas principales: `roles`, `usuarios`, `clientes`, `productos`, `servicios`, `pedidos`, `pedido_items`, `pedido_facturas`, `pagos`, `envios`, `tarifas_envio`, `servientrega_cuenta`, `servientrega_detalle`, `proveedores`, `facturas_proveedor`, `nomina_mov`, `tickets`, `auditoria`, `disenos_personalizados`. El detalle está en [`docs/database-schema.md`](docs/database-schema.md).
 
 Propietario: El Mundo de las Tutus
