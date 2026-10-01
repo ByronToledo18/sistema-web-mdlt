@@ -77,14 +77,16 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       if (response.ok) {
         const data = await response.json()
         setIsClientLoggedIn(true)
-        setFormData({
-          ...formData,
+        // Updater funcional: si el usuario cambió algo (p. ej. "Retiro en
+        // Tienda") mientras cargaba el perfil, no se pisa con el estado viejo.
+        setFormData((prev) => ({
+          ...prev,
           nombre: data.cliente.nombre || "",
           cedula: data.cliente.cedula || "",
           telefono: data.cliente.telefono || "",
           email: data.cliente.email || "",
           direccion: data.cliente.direccion || "",
-        })
+        }))
       }
     } catch (error) {
       logger.error("catalogo/checkout: verificar sesión del cliente", error)
