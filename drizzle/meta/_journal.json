@@ -15,6 +15,13 @@
       "when": 1790830702171,
       "tag": "0001_datos_referencia",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790874849582,
+      "tag": "0002_servientrega_envio_unico",
+      "breakpoints": true
     }
   ]
 }

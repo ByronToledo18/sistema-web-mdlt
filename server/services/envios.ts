@@ -165,16 +165,16 @@ async function recalcularCuenta(ex: Executor, cuentaId: number): Promise<void> {
     .where(eq(servientregaCuenta.id, cuentaId))
 }
 
-// Agrega el envío a la cuenta del período si todavía no está en ninguna.
+// Agrega el envío a la cuenta del período si todavía no está en ninguna. El
+// UNIQUE de envio_id hace que dos despachos simultáneos no lo carguen dos veces.
 async function cargarEnvioACuenta(ex: Executor, envioId: number, monto: string, cuentaId: number): Promise<boolean> {
-  const [existente] = await ex
-    .select({ id: servientregaDetalle.id })
-    .from(servientregaDetalle)
-    .where(eq(servientregaDetalle.envio_id, envioId))
-    .limit(1)
-  if (existente) return false
+  const insertados = await ex
+    .insert(servientregaDetalle)
+    .values({ cuenta_id: cuentaId, envio_id: envioId, monto })
+    .onConflictDoNothing({ target: servientregaDetalle.envio_id })
+    .returning({ id: servientregaDetalle.id })
+  if (insertados.length === 0) return false
 
-  await ex.insert(servientregaDetalle).values({ cuenta_id: cuentaId, envio_id: envioId, monto })
   await recalcularCuenta(ex, cuentaId)
   return true
 }

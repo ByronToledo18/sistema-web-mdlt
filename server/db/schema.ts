@@ -385,6 +385,8 @@ export const servientregaDetalle = pgTable(
       name: "servientrega_detalle_cuenta_id_fkey",
     }).onDelete("cascade"),
     foreignKey({ columns: [t.envio_id], foreignColumns: [envios.id], name: "servientrega_detalle_envio_id_fkey" }),
+    // Un envío se carga a lo sumo una vez en las cuentas de Servientrega.
+    unique("servientrega_detalle_envio_id_key").on(t.envio_id),
   ],
 )
 
