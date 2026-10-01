@@ -15,7 +15,7 @@ export const GET = withAuth(
   { permission: { module: "cobros", action: "read" }, error: "Error al generar reporte" },
   async (request) => {
     const { start_date, end_date, format } = parseQuery(request, reporteQuery)
-    const pagos = await pagosPorRango(new Date(start_date), new Date(end_date))
+    const pagos = await pagosPorRango(start_date, end_date)
     const total = pagos.reduce((sum, pago) => sum + Number.parseFloat(pago.monto), 0)
 
     if (format === "csv") {

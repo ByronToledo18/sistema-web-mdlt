@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest"
 import { eq } from "drizzle-orm"
 import { db } from "@/server/db/client"
 import { envios, pagos, pedidos } from "@/server/db/schema"
-import { registrarPago } from "@/server/services/pagos"
+import { consolidacionMensual, pagosPorRango, registrarPago } from "@/server/services/pagos"
 import { agregarItem, crearPedido } from "@/server/services/pedidos"
 import { resetDb } from "../support/db-client"
 import { admin, asistente, crearCliente, crearProducto, crearServicioEnvio } from "../support/fixtures"
@@ -101,5 +101,41 @@ describe("registrarPago", () => {
 
   test("pedido inexistente: 404", async () => {
     await expect(registrarPago(admin, pago(999, 10))).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe("pagosPorRango", () => {
+  // Cobros en los bordes del 30/09 en Ecuador (UTC-5).
+  async function cobrosEnBordes() {
+    const pedido = await pedidoPorCobrar(100)
+    const fechas = [
+      "2026-09-01T04:59:59Z", // 31/08 23:59:59 Ecuador: fuera
+      "2026-09-01T05:00:00Z", // 01/09 00:00 Ecuador: dentro
+      "2026-09-30T15:00:00Z", // 30/09 10:00 Ecuador: dentro (antes se perdía)
+      "2026-10-01T04:59:59Z", // 30/09 23:59:59 Ecuador: dentro
+      "2026-10-01T05:00:00Z", // 01/10 00:00 Ecuador: fuera
+    ]
+    await db.insert(pagos).values(fechas.map((f) => ({ pedido_id: pedido.id, monto: "10.00", fecha: new Date(f) })))
+  }
+
+  test("incluye el último día completo, en hora de Ecuador", async () => {
+    await cobrosEnBordes()
+    const filas = await pagosPorRango("2026-09-01", "2026-09-30")
+    expect(filas.map((f) => f.fecha?.toISOString()).sort()).toEqual([
+      "2026-09-01T05:00:00.000Z",
+      "2026-09-30T15:00:00.000Z",
+      "2026-10-01T04:59:59.000Z",
+    ])
+  })
+
+  test("un rango de un solo día", async () => {
+    await cobrosEnBordes()
+    expect(await pagosPorRango("2026-09-30", "2026-09-30")).toHaveLength(2)
+  })
+
+  test("consolidacionMensual usa el mismo rango", async () => {
+    await cobrosEnBordes()
+    const resumen = await consolidacionMensual(2026, 9)
+    expect(resumen).toMatchObject({ total_pagos: 30, cantidad_pagos: 3 })
   })
 })
