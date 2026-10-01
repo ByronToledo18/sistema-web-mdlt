@@ -7,7 +7,7 @@ import { formatCurrency, formatDateTime, MESES } from "@/components/admin/format
 import { ReporteCobros } from "@/components/admin/pagos/reporte-cobros"
 import { PeriodoSelector } from "@/components/admin/periodo-selector"
 import { requirePermission } from "@/server/auth/session"
-import { consolidacionMensual, pagosPorRango } from "@/server/services/pagos"
+import { consolidacionMensual, mesEnDias, pagosPorRango } from "@/server/services/pagos"
 import { periodoQuery } from "@/server/validators/pagos"
 
 type SearchParams = Promise<{ year?: string; month?: string }>
@@ -21,7 +21,7 @@ export default async function PagosPage({ searchParams }: { searchParams: Search
   // esos parámetros y el detalle mostraba los cobros de todos los meses.
   const [consolidacion, pagos] = await Promise.all([
     consolidacionMensual(year, month),
-    pagosPorRango(new Date(year, month - 1, 1), new Date(year, month, 0, 23, 59, 59)),
+    pagosPorRango(...mesEnDias(year, month)),
   ])
 
   return (
