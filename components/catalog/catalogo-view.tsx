@@ -50,7 +50,7 @@ interface CatalogoViewProps {
 }
 
 // Parte interactiva del catálogo (carrito, sesión del cliente, checkout). Los
-// productos y servicios llegan ya cargados desde app/catalogo/page.tsx.
+// productos y servicios llegan ya cargados desde app/(public)/catalogo/page.tsx.
 export function CatalogoView({ productos, servicios }: CatalogoViewProps) {
   const router = useRouter()
   const [cartOpen, setCartOpen] = useState(false)

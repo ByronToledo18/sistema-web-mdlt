@@ -70,14 +70,14 @@ Exact values:
 
 - This exact pattern (always-mounted, `isOpen`-driven `translate`/`scale`/`opacity` classes via `cn()`, `pointer-events-none` when closed, `aria-hidden`) was just implemented in `components/catalog/cart-sidebar.tsx` for the cart drawer — copy that structure, not the drawer's `translateX` (this is a centered modal, not a drawer, so use `scale` + `opacity`, no `translate`).
 - `cn` comes from `@/lib/utils` — the cart-sidebar import is `import { cn } from "@/lib/utils"`.
-- Duration: this repo's shared convention (see `app/catalogo/disenar/page.tsx`'s `.design-reveal` and the cart drawer) is to inline exact Tailwind duration/ease utilities or a dedicated CSS class in `app/globals.css` — either is acceptable; prefer inline Tailwind classes here since no other component needs to share this exact transition.
+- Duration: this repo's shared convention (see `app/(public)/catalogo/disenar/page.tsx`'s `.design-reveal` and the cart drawer) is to inline exact Tailwind duration/ease utilities or a dedicated CSS class in `app/globals.css` — either is acceptable; prefer inline Tailwind classes here since no other component needs to share this exact transition.
 
 ## Steps
 
 1. Open `components/catalog/checkout-modal.tsx`. Add `import { cn } from "@/lib/utils"` near the top with the other imports.
 2. Replace `if (!isOpen) return null` (line 194) — delete this line entirely. The component must always render.
 3. Find the outer `return (<> <div className="fixed inset-0 bg-black/50 z-50" onClick={handleClose} /> ...` block. Wrap the overlay div and the modal panel div exactly as shown in the Target section above, preserving every existing prop, state variable, and all child JSX of the modal panel unchanged — only the wrapping `className` and structure around it changes.
-4. Confirm the component that renders `<CheckoutModal isOpen={checkoutOpen} ... />` (in `app/catalogo/page.tsx`) does **not** conditionally wrap it (e.g. `{checkoutOpen && <CheckoutModal .../>}`). If it does, remove that conditional — the component must always be mounted for the exit transition to play. (As of this plan's commit, `app/catalogo/page.tsx` already renders it unconditionally — verify this is still true before editing.)
+4. Confirm the component that renders `<CheckoutModal isOpen={checkoutOpen} ... />` (in `app/(public)/catalogo/page.tsx`) does **not** conditionally wrap it (e.g. `{checkoutOpen && <CheckoutModal .../>}`). If it does, remove that conditional — the component must always be mounted for the exit transition to play. (As of this plan's commit, `app/(public)/catalogo/page.tsx` already renders it unconditionally — verify this is still true before editing.)
 
 ## Boundaries
 
