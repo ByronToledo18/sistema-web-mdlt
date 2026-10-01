@@ -2,11 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ShoppingCart, Users, Package, TrendingUp } from "lucide-react"
 import AdminLayout from "@/components/admin-layout"
 import { requireUser } from "@/server/auth/session"
-import { resumenDashboard, type TipoActividad } from "@/server/services/dashboard"
+import { PedidosPorEstadoChart } from "@/components/admin/dashboard/pedidos-por-estado-chart"
+import { VentasPorMesChart } from "@/components/admin/dashboard/ventas-por-mes-chart"
+import { pedidosPorEstado, resumenDashboard, ventasPorMes, type TipoActividad } from "@/server/services/dashboard"
 
 export default async function DashboardPage() {
   const user = await requireUser()
-  const resumen = await resumenDashboard()
+  const [resumen, ventas, estados] = await Promise.all([resumenDashboard(), ventasPorMes(12), pedidosPorEstado()])
 
   const pedidosCount = resumen.pedidosActivos
   const clientesCount = resumen.clientesTotales
@@ -127,7 +129,32 @@ export default async function DashboardPage() {
             })}
           </div>
 
-          <Card className="border-neutral-200 bg-white shadow-sm animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card
+              className="border-neutral-200 bg-white shadow-sm animate-fade-in-up lg:col-span-2"
+              style={{ animationDelay: "0.4s" }}
+            >
+              <CardHeader>
+                <CardTitle className="text-neutral-900">Ventas por Mes</CardTitle>
+                <CardDescription className="text-neutral-600">Últimos 12 meses, sin pedidos anulados</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <VentasPorMesChart data={ventas} />
+              </CardContent>
+            </Card>
+
+            <Card className="border-neutral-200 bg-white shadow-sm animate-fade-in-up" style={{ animationDelay: "0.5s" }}>
+              <CardHeader>
+                <CardTitle className="text-neutral-900">Pedidos por Estado</CardTitle>
+                <CardDescription className="text-neutral-600">Todos los pedidos registrados</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PedidosPorEstadoChart data={estados} />
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-neutral-200 bg-white shadow-sm animate-fade-in-up" style={{ animationDelay: "0.6s" }}>
             <CardHeader>
               <CardTitle className="text-neutral-900">Actividad Reciente</CardTitle>
               <CardDescription className="text-neutral-600">Últimas acciones en el sistema</CardDescription>

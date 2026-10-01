@@ -105,7 +105,7 @@ function ChartTooltipContent({
             (nameKey && item.payload?.[nameKey]) ?? (typeof item.dataKey === "function" ? item.name : item.dataKey) ?? "value",
           )
           const itemConfig = config[key]
-          const color = item.payload?.fill ?? item.color
+          const color = itemConfig?.color ? `var(--color-${key})` : (item.payload?.fill ?? item.color)
           return (
             <div key={`${key}-${index}`} className="flex w-full items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
