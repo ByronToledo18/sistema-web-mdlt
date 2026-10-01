@@ -67,12 +67,13 @@ describe("crearEnvio", () => {
     await expect(crearEnvio(admin, { pedido_id: pedido.id, costo: 3 })).rejects.toMatchObject({ status: 400 })
   })
 
-  test("pedido cerrado: el asistente no puede crear envíos", async () => {
+  test("pedido cerrado: nadie crea envíos (agregan un ítem), ni el administrador", async () => {
     const cliente = await crearCliente()
     const pedido = await crearPedido(cliente.id)
     await crearServicioEnvio()
     await db.update(pedidos).set({ estado: "terminado" }).where(eq(pedidos.id, pedido.id))
-    await expect(crearEnvio(asistente, { pedido_id: pedido.id, costo: 3 })).rejects.toMatchObject({ status: 403 })
+    await expect(crearEnvio(asistente, { pedido_id: pedido.id, costo: 3 })).rejects.toMatchObject({ status: 400 })
+    await expect(crearEnvio(admin, { pedido_id: pedido.id, costo: 3 })).rejects.toMatchObject({ status: 400 })
   })
 
   test("pedido inexistente: 404", async () => {

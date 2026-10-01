@@ -10,6 +10,8 @@ import {
   eliminarItem,
   eliminarPedido,
 } from "@/server/services/pedidos"
+import { crearEnvio } from "@/server/services/envios"
+import { eliminarPago, registrarPago } from "@/server/services/pagos"
 import { resetDb } from "../support/db-client"
 import { admin, asistente, crearCliente, crearProducto, crearServicioEnvio, stockDe } from "../support/fixtures"
 
@@ -109,12 +111,96 @@ describe("pedidos cerrados: solo el administrador los reabre", () => {
     })
   })
 
-  test("entregado también bloquea ítems y cobros para el asistente", async () => {
+  test("entregado también bloquea los ítems", async () => {
     const { pedido, item, total } = await pedidoConProducto()
     await pagarTodo(pedido.id, total)
     await actualizarEstadoPedido(asistente, pedido.id, "entregado")
 
-    await expect(editarItem(asistente, pedido.id, item.id, { cantidad: 1 })).rejects.toMatchObject({ status: 403 })
+    await expect(editarItem(asistente, pedido.id, item.id, { cantidad: 1 })).rejects.toMatchObject({ status: 400 })
+  })
+})
+
+// Un pedido cerrado tiene saldo cero, y nada (ni el administrador) puede
+// dejarlo cerrado con saldo pendiente: ni ítems ni cobros eliminados. Para
+// corregirlo hay que reabrirlo.
+describe("pedidos cerrados: el saldo sigue en cero", () => {
+  async function saldoDe(pedidoId: number) {
+    const [p] = await db.select({ total: pedidos.total }).from(pedidos).where(eq(pedidos.id, pedidoId))
+    const cobros = await db.select({ monto: pagos.monto }).from(pagos).where(eq(pagos.pedido_id, pedidoId))
+    return Math.round(Number(p.total) * 100) - cobros.reduce((acc, c) => acc + Math.round(Number(c.monto) * 100), 0)
+  }
+
+  async function pedidoCerrado(estado: "terminado" | "entregado") {
+    const datos = await pedidoConProducto(3)
+    const pago = await registrarPago(asistente, {
+      pedido_id: datos.pedido.id,
+      monto: datos.total,
+      metodo: "efectivo",
+      referencia: null,
+      observacion: null,
+    })
+    await actualizarEstadoPedido(asistente, datos.pedido.id, estado)
+    return { ...datos, pago }
+  }
+
+  test.each(["terminado", "entregado"] as const)(
+    "%s: el administrador no edita, agrega ni elimina ítems, ni elimina cobros",
+    async (estado) => {
+      const { pedido, producto, item, pago } = await pedidoCerrado(estado)
+      const nuevo = { item_tipo: "producto" as const, item_id: producto.id, descripcion: null, cantidad: 1, precio_unitario: 10 }
+
+      await expect(editarItem(admin, pedido.id, item.id, { cantidad: 5 })).rejects.toMatchObject({ status: 400 })
+      await expect(agregarItem(admin, pedido.id, nuevo)).rejects.toMatchObject({ status: 400 })
+      await expect(eliminarItem(admin, pedido.id, item.id)).rejects.toMatchObject({ status: 400 })
+      await expect(crearEnvio(admin, { pedido_id: pedido.id, costo: 3 })).rejects.toMatchObject({ status: 400 })
+      await expect(eliminarPago(pago.id)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining("reábrelo"),
+      })
+
+      expect(await saldoDe(pedido.id)).toBe(0)
+      expect(await estadoDe(pedido.id)).toBe(estado)
+      expect(await stockDe(producto.id)).toBe(7)
+      expect(await db.select().from(pagos).where(eq(pagos.pedido_id, pedido.id))).toHaveLength(1)
+    },
+  )
+
+  test("anulado: tampoco se eliminan sus cobros", async () => {
+    const { pedido } = await pedidoConProducto(1)
+    const pago = await registrarPago(asistente, {
+      pedido_id: pedido.id,
+      monto: 5,
+      metodo: "efectivo",
+      referencia: null,
+      observacion: null,
+    })
+    await actualizarEstadoPedido(asistente, pedido.id, "anulado")
+    await expect(eliminarPago(pago.id)).rejects.toMatchObject({ status: 400 })
+  })
+
+  test("reabierto por el administrador, ya se corrige; para volver a cerrarlo exige saldo cero", async () => {
+    const { pedido, item, pago } = await pedidoCerrado("terminado")
+    await actualizarEstadoPedido(admin, pedido.id, "en_proceso")
+
+    await eliminarPago(pago.id)
+    await editarItem(admin, pedido.id, item.id, { cantidad: 2 })
+    expect(await saldoDe(pedido.id)).toBe(2_000)
+    await expect(actualizarEstadoPedido(admin, pedido.id, "terminado")).rejects.toMatchObject({ status: 400 })
+    expect(await estadoDe(pedido.id)).toBe("en_proceso")
+  })
+
+  test("eliminarPago de un pedido abierto sigue funcionando; inexistente: 404", async () => {
+    const { pedido } = await pedidoConProducto(1)
+    const pago = await registrarPago(asistente, {
+      pedido_id: pedido.id,
+      monto: 5,
+      metodo: "efectivo",
+      referencia: null,
+      observacion: null,
+    })
+    await eliminarPago(pago.id)
+    expect(await db.select().from(pagos)).toHaveLength(0)
+    await expect(eliminarPago(pago.id)).rejects.toMatchObject({ status: 404 })
   })
 })
 

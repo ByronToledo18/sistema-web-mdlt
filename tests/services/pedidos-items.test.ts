@@ -102,7 +102,7 @@ describe("ítems de pedido y stock", () => {
     expect(await totalDe(pedido.id)).toBe("0.00")
   })
 
-  test("pedido terminado: el asistente no lo modifica, el administrador sí", async () => {
+  test("pedido terminado: nadie agrega ítems, ni el administrador", async () => {
     const pedido = await pedidoNuevo()
     const servicio = await crearServicio()
     await db.update(pedidos).set({ estado: "terminado" }).where(eq(pedidos.id, pedido.id))
@@ -114,7 +114,14 @@ describe("ítems de pedido y stock", () => {
       precio_unitario: 5,
     }
 
-    await expect(agregarItem(asistente, pedido.id, item)).rejects.toMatchObject({ status: 403 })
+    await expect(agregarItem(asistente, pedido.id, item)).rejects.toMatchObject({ status: 400 })
+    await expect(agregarItem(admin, pedido.id, item)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining("reábrelo"),
+    })
+
+    // Reabierto por el administrador, ya se puede.
+    await actualizarEstadoPedido(admin, pedido.id, "en_proceso")
     await expect(agregarItem(admin, pedido.id, item)).resolves.toMatchObject({ subtotal: "5.00" })
   })
 })

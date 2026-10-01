@@ -27,7 +27,7 @@ import {
 } from "./_shared"
 import { buscarServicioEnvio, crearEnvioAutomatico, SERVICIO_ENVIO } from "./envios"
 import {
-  assertNoAnulado,
+  assertItemsEditables,
   assertPedidoEditable,
   bloquearPedido,
   generarCodigoPedido,
@@ -213,8 +213,7 @@ export async function eliminarPedido(id: number): Promise<void> {
 export async function agregarItem(user: UserPayload, pedidoId: number, input: AgregarItem) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, pedidoId)
-    assertPedidoEditable(user, pedido.estado, "No se pueden agregar items a un pedido terminado, anulado o entregado")
-    assertNoAnulado(pedido.estado)
+    assertItemsEditables(pedido.estado, "agregar ítems")
 
     // graba_iva se copia del producto/servicio en este momento.
     let grabaIva: boolean
@@ -249,8 +248,7 @@ export async function agregarItem(user: UserPayload, pedidoId: number, input: Ag
 export async function editarItem(user: UserPayload, pedidoId: number, itemId: number, input: EditarItem) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, pedidoId)
-    assertPedidoEditable(user, pedido.estado, "No se pueden modificar items de un pedido terminado, anulado o entregado")
-    assertNoAnulado(pedido.estado)
+    assertItemsEditables(pedido.estado, "modificar ítems")
 
     const [actual] = await tx
       .select()
@@ -286,8 +284,7 @@ export async function editarItem(user: UserPayload, pedidoId: number, itemId: nu
 export async function eliminarItem(user: UserPayload, pedidoId: number, itemId: number): Promise<void> {
   await withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, pedidoId)
-    assertPedidoEditable(user, pedido.estado, "No se pueden eliminar items de un pedido terminado, anulado o entregado")
-    assertNoAnulado(pedido.estado)
+    assertItemsEditables(pedido.estado, "eliminar ítems")
 
     // El DELETE … RETURNING decide qué stock devolver: si dos peticiones
     // borran el mismo ítem, solo la primera lo encuentra.

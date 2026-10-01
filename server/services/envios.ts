@@ -17,7 +17,7 @@ import {
   servientregaPagos,
 } from "@/server/db/schema"
 import { fromCents, paginar, periodoActual, pgErrorCode, PG_FOREIGN_KEY_VIOLATION, siguienteCodigo, toCents } from "./_shared"
-import { assertPedidoEditable, bloquearPedido, montosDeLinea, recalcularTotalPedido } from "./pedido-base"
+import { assertItemsEditables, bloquearPedido, montosDeLinea, recalcularTotalPedido } from "./pedido-base"
 
 // Nombre del servicio del catálogo que representa el costo de envío en
 // pedido_items (item_tipo = 'servicio').
@@ -115,7 +115,8 @@ export async function obtenerEnvio(id: number) {
 export async function crearEnvio(user: UserPayload, input: { pedido_id: number; costo: number }) {
   return withTx(async (tx) => {
     const pedido = await bloquearPedido(tx, input.pedido_id)
-    assertPedidoEditable(user, pedido.estado, "No se pueden crear envíos para un pedido terminado, anulado o entregado")
+    // Agrega un ítem y cambia el total: misma regla que los ítems.
+    assertItemsEditables(pedido.estado, "crear envíos")
 
     const servicioEnvio = await buscarServicioEnvio(tx)
     if (!servicioEnvio) {

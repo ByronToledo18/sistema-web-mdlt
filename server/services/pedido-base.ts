@@ -40,20 +40,25 @@ export function estaCerrado(estado: string | null): boolean {
   return (ESTADOS_CERRADOS as readonly (string | null)[]).includes(estado)
 }
 
-// Un pedido cerrado (terminado, anulado o entregado) solo lo modifica quien
-// tenga permiso (hoy, el administrador).
+// En un pedido cerrado (terminado, anulado o entregado), cambiar el estado
+// (reabrirlo) y registrar cobros solo lo hace quien tenga permiso (hoy, el
+// administrador). Los ítems y la eliminación de cobros no se permiten a nadie
+// mientras siga cerrado (assertItemsEditables, eliminarPago).
 export function assertPedidoEditable(user: UserPayload, estado: string | null, mensaje: string): void {
   if (estaCerrado(estado) && !can(user, "pedidos_cerrados", "update")) {
     throw new HttpError(403, mensaje)
   }
 }
 
-// Al anular un pedido su stock vuelve al inventario. Mientras siga anulado
-// sus ítems no se tocan (ni siquiera el administrador): moverían un stock que
-// ya no está descontado. Hay que reabrirlo primero.
-export function assertNoAnulado(estado: string | null): void {
-  if (estado === "anulado") {
-    throw new HttpError(400, "El pedido está anulado: reábrelo antes de modificar sus ítems")
+// Los ítems de un pedido cerrado (terminado, anulado o entregado) no se
+// agregan, editan ni eliminan, para ningún rol (administrador incluido): un
+// cerrado tiene saldo cero y cambiar su total dejaría saldo pendiente en un
+// pedido ya cerrado (o, si está anulado, movería un stock que ya volvió al
+// inventario). Para corregirlo, el administrador primero lo reabre (cambio de
+// estado).
+export function assertItemsEditables(estado: string | null, accion: string): void {
+  if (estaCerrado(estado)) {
+    throw new HttpError(400, `No se pueden ${accion} de un pedido terminado, anulado o entregado: reábrelo primero`)
   }
 }
 
