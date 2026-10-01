@@ -1,154 +1,36 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql, executeQuery } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { actualizarEnvio, eliminarEnvio, obtenerEnvio } from "@/server/services/envios"
+import { idParams, parseBody, parseParams } from "@/server/validators/common"
+import { actualizarEnvioBody } from "@/server/validators/pagos"
+
+type Params = { id: string }
 
 // GET - Obtener envío
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth(["administrador", "asistente"])
-    const { id } = await params
+export const GET = withAuth<Params>(
+  { permission: { module: "envios", action: "read" }, error: "Error al obtener envío" },
+  async (_request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    return NextResponse.json({ envio: await obtenerEnvio(id) })
+  },
+)
 
-    const result = await sql`
-      SELECT e.*, p.codigo as pedido_codigo, c.nombre as cliente_nombre, c.direccion as cliente_direccion
-      FROM envios e
-      JOIN pedidos p ON e.pedido_id = p.id
-      JOIN clientes c ON p.cliente_id = c.id
-      WHERE e.id = ${id}
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Envío no encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({ envio: result[0] })
-  } catch (error: any) {
-    console.error("[v0] Get envio error:", error)
-    return NextResponse.json({ error: error.message || "Error al obtener envío" }, { status: 500 })
-  }
-}
-
-// PUT - Actualizar envío
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await requireAuth(["administrador", "asistente"])
-    const { id } = await params
-    const { estado, costo, guia } = await request.json()
-
-    const currentEnvio = await sql`SELECT * FROM envios WHERE id = ${id}`
-
-    if (currentEnvio.length === 0) {
-      return NextResponse.json({ error: "Envío no encontrado" }, { status: 404 })
-    }
-
-    const previousEstado = currentEnvio[0].estado
-
-    const updates: string[] = []
-    const values: any[] = []
-    let paramIndex = 1
-
-    if (estado) {
-      updates.push(`estado = $${paramIndex}`)
-      values.push(estado)
-      paramIndex++
-    }
-
-    if (costo !== undefined) {
-      updates.push(`costo = $${paramIndex}`)
-      values.push(costo)
-      paramIndex++
-    }
-
-    if (guia) {
-      // Reemplaza el número de guía interno (autogenerado al crear el envío)
-      // por la guía real que el admin generó manualmente en el portal de
-      // Servientrega - ver nota en lib/envios.ts sobre por qué no se genera
-      // automáticamente.
-      updates.push(`guia = $${paramIndex}`)
-      values.push(guia)
-      paramIndex++
-    }
-
-    if (updates.length === 0) {
-      return NextResponse.json({ error: "No hay campos para actualizar" }, { status: 400 })
-    }
-
-    updates.push(`updated_at = CURRENT_TIMESTAMP`)
-    values.push(id)
-
-    const query = `UPDATE envios SET ${updates.join(", ")} WHERE id = $${paramIndex} RETURNING *`
-    const result = await executeQuery(query, values)
-    const rows = result.rows || result
-
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "Envío no encontrado" }, { status: 404 })
-    }
-
-    const updatedEnvio = rows[0]
-
-    if ((estado === "en_proceso" || estado === "terminado") && previousEstado === "pendiente") {
-      const periodo = new Date().toISOString().slice(0, 7) // YYYY-MM format
-
-      // Get or create Servientrega account for current period
-      let cuenta = await sql`
-        SELECT * FROM servientrega_cuenta WHERE periodo = ${periodo}
-      `
-
-      if (cuenta.length === 0) {
-        // Create new account for this period
-        cuenta = await sql`
-          INSERT INTO servientrega_cuenta (periodo, fecha_corte, total_cargos, total_pagado, saldo)
-          VALUES (${periodo}, NULL, 0, 0, 0)
-          RETURNING *
-        `
-      }
-
-      const cuentaId = cuenta[0].id
-      const costoEnvio = Number.parseFloat(updatedEnvio.costo || "0")
-
-      // Check if already added to avoid duplicates
-      const existingDetalle = await sql`
-        SELECT * FROM servientrega_detalle WHERE envio_id = ${updatedEnvio.id}
-      `
-
-      if (existingDetalle.length === 0) {
-        // Add shipment to Servientrega account detail
-        await sql`
-          INSERT INTO servientrega_detalle (cuenta_id, envio_id, monto)
-          VALUES (${cuentaId}, ${updatedEnvio.id}, ${costoEnvio})
-        `
-
-        // Update account totals
-        await sql`
-          UPDATE servientrega_cuenta
-          SET total_cargos = total_cargos + ${costoEnvio},
-              saldo = saldo + ${costoEnvio}
-          WHERE id = ${cuentaId}
-        `
-      }
-    }
-
-    return NextResponse.json({ envio: updatedEnvio })
-  } catch (error: any) {
-    console.error("[v0] Update envio error:", error)
-    return NextResponse.json({ error: error.message || "Error al actualizar envío" }, { status: 500 })
-  }
-}
+// PUT - Actualizar estado, costo o guía del envío
+export const PUT = withAuth<Params>(
+  { permission: { module: "envios", action: "update" }, error: "Error al actualizar envío" },
+  async (request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    const input = await parseBody(request, actualizarEnvioBody)
+    return NextResponse.json({ envio: await actualizarEnvio(id, input) })
+  },
+)
 
 // DELETE - Eliminar envío
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth(["administrador"])
-    const { id } = await params
-
-    const result = await sql`DELETE FROM envios WHERE id = ${id} RETURNING *`
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Envío no encontrado" }, { status: 404 })
-    }
-
+export const DELETE = withAuth<Params>(
+  { permission: { module: "envios", action: "delete" }, error: "Error al eliminar envío" },
+  async (_request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    await eliminarEnvio(id)
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error("[v0] Delete envio error:", error)
-    return NextResponse.json({ error: error.message || "Error al eliminar envío" }, { status: 500 })
-  }
-}
+  },
+)
