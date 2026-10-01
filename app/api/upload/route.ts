@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth"
 export async function POST(request: NextRequest) {
   try {
     // Require authentication
-    const user = await requireAuth(["administrador", "asistente"])
+    await requireAuth(["administrador", "asistente"])
 
     const formData = await request.formData()
     const file = formData.get("file") as File

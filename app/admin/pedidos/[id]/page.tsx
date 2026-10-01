@@ -120,14 +120,14 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
   const [updatingEstado, setUpdatingEstado] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false)
-  const [envioDialogOpen, setEnvioDialogOpen] = useState(false)
+  const [_envioDialogOpen, setEnvioDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PedidoItem | null>(null)
   const [error, setError] = useState("")
   const [pagoError, setPagoError] = useState("")
-  const [envioError, setEnvioError] = useState("")
+  const [_envioError, setEnvioError] = useState("")
   const [userRole, setUserRole] = useState<string>("")
   const [totalPagado, setTotalPagado] = useState<number>(0)
-  const [updatingEnvioEstado, setUpdatingEnvioEstado] = useState<number | null>(null)
+  const [_updatingEnvioEstado, setUpdatingEnvioEstado] = useState<number | null>(null)
   const [factura, setFactura] = useState<{ id: number; numero_factura: string } | null>(null)
   const [generandoFactura, setGenerandoFactura] = useState(false)
 
@@ -423,7 +423,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
       fetchPedido()
       fetchPagos()
       fetchEnvios()
-    } catch (err) {
+    } catch {
       setPagoError("Error al registrar pago")
     }
   }
@@ -446,7 +446,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
     }
   }
 
-  const handleSubmitEnvio = async (e: React.FormEvent) => {
+  const _handleSubmitEnvio = async (e: React.FormEvent) => {
     e.preventDefault()
     setEnvioError("")
 
@@ -475,7 +475,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
       setEnvioDialogOpen(false)
       resetEnvioForm()
       fetchEnvios()
-    } catch (err) {
+    } catch {
       setEnvioError("Error al crear envío")
     }
   }
@@ -502,7 +502,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
     }
   }
 
-  const handleEnvioEstadoChange = async (envioId: number, nuevoEstado: string) => {
+  const _handleEnvioEstadoChange = async (envioId: number, nuevoEstado: string) => {
     setUpdatingEnvioEstado(envioId)
     try {
       const response = await fetch(`/api/envios/${envioId}`, {
@@ -578,11 +578,11 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
   const canModifyOrder = userRole === "administrador" || !isOrderClosed
 
   let saldoPendiente = 0
-  let canCreateShipping = false
+  let _canCreateShipping = false
 
   if (pedido) {
     saldoPendiente = Number.parseFloat(pedido.total) - totalPagado
-    canCreateShipping = saldoPendiente <= 0 && canModifyOrder
+    _canCreateShipping = saldoPendiente <= 0 && canModifyOrder
   }
 
   const currentItems = itemForm.item_tipo === "producto" ? productos : servicios
@@ -869,7 +869,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
             {pedido.items.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>Este pedido aún no tiene items.</p>
-                <p className="text-sm mt-2">Haz clic en "Agregar Item" para comenzar.</p>
+                <p className="text-sm mt-2">Haz clic en &quot;Agregar Item&quot; para comenzar.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -1027,7 +1027,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
             {pagos.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>No hay pagos registrados para este pedido.</p>
-                <p className="text-sm mt-2">Haz clic en "Registrar Pago" para agregar uno.</p>
+                <p className="text-sm mt-2">Haz clic en &quot;Registrar Pago&quot; para agregar uno.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -1075,7 +1075,7 @@ export default function PedidoDetallePage({ params: paramsPromise }: { params: P
               <div className="text-center py-8 text-muted-foreground">
                 <p>No hay envíos registrados para este pedido.</p>
                 <p className="text-sm mt-2">
-                  Agrega el servicio de "Envío" como item para registrar el costo de envío.
+                  Agrega el servicio de &quot;Envío&quot; como item para registrar el costo de envío.
                 </p>
               </div>
             ) : (

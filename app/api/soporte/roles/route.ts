@@ -1,23 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { listarRoles } from "@/server/services/usuarios"
 
-export async function GET(request: NextRequest) {
-  try {
-    const user = await requireAuth(["soporte", "administrador"])
-
-    const roles = await sql`
-      SELECT id, nombre
-      FROM roles
-      ORDER BY nombre ASC
-    `
-
-    return NextResponse.json(roles)
-  } catch (error: any) {
-    console.error("[v0] Get roles error:", error)
-    return NextResponse.json(
-      { error: error.message || "Error al obtener roles" },
-      { status: error.message?.includes("No autorizado") ? 401 : 500 },
-    )
-  }
-}
+// GET - Listar roles
+export const GET = withAuth(
+  { permission: { module: "usuarios", action: "read" }, error: "Error al obtener roles" },
+  async () => NextResponse.json(await listarRoles()),
+)

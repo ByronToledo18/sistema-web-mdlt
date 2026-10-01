@@ -1,94 +1,36 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { actualizarServicio, eliminarServicio, obtenerServicio } from "@/server/services/catalogo"
+import { servicioBody } from "@/server/validators/catalogo"
+import { idParams, parseBody, parseParams } from "@/server/validators/common"
+
+type Params = { id: string }
 
 // GET - Obtener servicio
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth()
-    const { id } = await params
-
-    const result = await sql`SELECT * FROM servicios WHERE id = ${id}`
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({ servicio: result[0] })
-  } catch (error: any) {
-    console.error("[v0] Get servicio error:", error)
-    return NextResponse.json({ error: error.message || "Error al obtener servicio" }, { status: 500 })
-  }
-}
+export const GET = withAuth<Params>(
+  { permission: { module: "servicios", action: "read" }, error: "Error al obtener servicio" },
+  async (_request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    return NextResponse.json({ servicio: await obtenerServicio(id) })
+  },
+)
 
 // PUT - Actualizar servicio
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth(["administrador"])
-    const { id } = await params
-    const { nombre, unidad, precio_base, variable, activo, imagen_url } = await request.json()
+export const PUT = withAuth<Params>(
+  { permission: { module: "servicios", action: "update" }, error: "Error al actualizar servicio" },
+  async (request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    const datos = await parseBody(request, servicioBody)
+    return NextResponse.json({ servicio: await actualizarServicio(id, datos) })
+  },
+)
 
-    if (!nombre || precio_base === undefined) {
-      return NextResponse.json({ error: "Nombre y precio base son requeridos" }, { status: 400 })
-    }
-
-    if (precio_base < 0) {
-      return NextResponse.json({ error: "El precio no puede ser negativo" }, { status: 400 })
-    }
-
-    const result = await sql`
-      UPDATE servicios
-      SET nombre = ${nombre}, unidad = ${unidad || null}, precio_base = ${precio_base}, 
-          variable = ${variable === true}, activo = ${activo !== false}, 
-          imagen_url = ${imagen_url || null}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${id}
-      RETURNING *
-    `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({ servicio: result[0] })
-  } catch (error: any) {
-    console.error("[v0] Update servicio error:", error)
-    return NextResponse.json({ error: error.message || "Error al actualizar servicio" }, { status: 500 })
-  }
-}
-
-// DELETE - Eliminar servicio
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAuth(["administrador"])
-    const { id } = await params
-
-    const usageCheck = await sql`
-      SELECT COUNT(*) as count 
-      FROM pedido_items 
-      WHERE item_tipo = 'servicio' AND item_id = ${id}
-    `
-
-    const usageCount = Number.parseInt(usageCheck[0].count)
-
-    if (usageCount > 0) {
-      return NextResponse.json(
-        {
-          error: "No se puede eliminar este servicio porque ya ha sido usado en pedidos. Solo puedes inhabilitarlo.",
-          canDelete: false,
-        },
-        { status: 400 },
-      )
-    }
-
-    const result = await sql`DELETE FROM servicios WHERE id = ${id} RETURNING *`
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 })
-    }
-
+// DELETE - Eliminar servicio (solo si nunca se usó en pedidos)
+export const DELETE = withAuth<Params>(
+  { permission: { module: "servicios", action: "delete" }, error: "Error al eliminar servicio" },
+  async (_request, { params }) => {
+    const { id } = await parseParams(params, idParams)
+    await eliminarServicio(id)
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error("[v0] Delete servicio error:", error)
-    return NextResponse.json({ error: error.message || "Error al eliminar servicio" }, { status: 500 })
-  }
-}
+  },
+)

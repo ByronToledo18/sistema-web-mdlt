@@ -1,97 +1,24 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql, executeQuery } from "@/lib/db"
-import { requireAuth, hashPassword } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { crearCliente, listarClientes } from "@/server/services/clientes"
+import { crearClienteBody, listarClientesQuery } from "@/server/validators/clientes"
+import { parseBody, parseQuery } from "@/server/validators/common"
 
-// GET - Listar todos los clientes
-export async function GET(request: NextRequest) {
-  try {
-    await requireAuth()
+// GET - Listar clientes
+export const GET = withAuth(
+  { permission: { module: "clientes", action: "read" }, error: "Error al obtener clientes" },
+  async (request) => {
+    const filtros = parseQuery(request, listarClientesQuery)
+    return NextResponse.json({ clientes: await listarClientes(filtros) })
+  },
+)
 
-    const { searchParams } = new URL(request.url)
-    const search = searchParams.get("search") || ""
-    const mostrarInactivos = searchParams.get("mostrarInactivos") === "true"
-
-    let queryText = `SELECT * FROM clientes WHERE 1=1`
-    const params: any[] = []
-
-    if (!mostrarInactivos) {
-      queryText += ` AND activo = true`
-    }
-
-    if (search) {
-      queryText += ` AND (nombre ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1} OR telefono ILIKE $${params.length + 1} OR cedula ILIKE $${params.length + 1})`
-      params.push(`%${search}%`)
-    }
-
-    queryText += ` ORDER BY created_at DESC`
-
-    const clientes = await executeQuery(queryText, params)
-
-    return NextResponse.json({ clientes })
-  } catch (error: any) {
-    console.error("[v0] Get clientes error:", error)
-    console.error("[v0] Error type:", typeof error)
-    console.error("[v0] Error message:", error?.message)
-    console.error("[v0] Error stack:", error?.stack)
-    return NextResponse.json({ error: error?.message || "Error al obtener clientes" }, { status: 500 })
-  }
-}
-
-// POST - Crear nuevo cliente
-export async function POST(request: NextRequest) {
-  try {
-    await requireAuth(["administrador", "asistente"])
-
-    const { nombre, cedula, telefono, email, direccion, notas } = await request.json()
-
-    if (!nombre) {
-      return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 })
-    }
-
-    if (!cedula) {
-      return NextResponse.json({ error: "La cédula es requerida" }, { status: 400 })
-    }
-
-    if (cedula) {
-      const existingCliente = await sql`
-        SELECT id FROM clientes WHERE cedula = ${cedula}
-      `
-
-      if (existingCliente.length > 0) {
-        return NextResponse.json({ error: "La cédula ya está registrada en el sistema" }, { status: 400 })
-      }
-    }
-
-    const tempPassword = generateTempPassword()
-    const hashedPassword = await hashPassword(tempPassword)
-
-    const result = await sql`
-      INSERT INTO clientes (nombre, cedula, telefono, email, direccion, notas, hash_password, debe_cambiar_password)
-      VALUES (${nombre}, ${cedula}, ${telefono || null}, ${email || null}, ${direccion || null}, ${notas || null}, ${hashedPassword}, true)
-      RETURNING *
-    `
-
-    return NextResponse.json(
-      {
-        cliente: result[0],
-        tempPassword: tempPassword,
-      },
-      { status: 201 },
-    )
-  } catch (error: any) {
-    console.error("[v0] Create cliente error:", error)
-    return NextResponse.json({ error: error.message || "Error al crear cliente" }, { status: 500 })
-  }
-}
-
-function generateTempPassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Exclude similar looking characters
-  const length = 8
-  let password = ""
-
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-
-  return password
-}
+// POST - Crear cliente (con contraseña temporal para el portal)
+export const POST = withAuth(
+  { permission: { module: "clientes", action: "create" }, error: "Error al crear cliente" },
+  async (request) => {
+    const datos = await parseBody(request, crearClienteBody)
+    const { cliente, tempPassword } = await crearCliente(datos)
+    return NextResponse.json({ cliente, tempPassword }, { status: 201 })
+  },
+)

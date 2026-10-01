@@ -1,85 +1,20 @@
 import { NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
+import { withAuth, withErrors } from "@/server/auth/guard"
+import { crearTicket, listarTickets } from "@/server/services/usuarios"
+import { parseBody, parseQuery } from "@/server/validators/common"
+import { crearTicketBody, ticketsQuery } from "@/server/validators/usuarios"
 
-export async function GET(request: Request) {
-  try {
-    const user = await getCurrentUser()
+// GET - Listar tickets de soporte
+export const GET = withAuth(
+  { permission: { module: "sistema", action: "read" }, error: "Error al obtener tickets" },
+  async (request) => {
+    const { estado } = parseQuery(request, ticketsQuery)
+    return NextResponse.json(await listarTickets(estado))
+  },
+)
 
-    if (!user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    if (user.rol !== "soporte" && user.rol !== "administrador") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const estado = searchParams.get("estado")
-
-    let result
-    if (estado) {
-      result = await sql`
-        SELECT 
-          id,
-          tipo,
-          prioridad,
-          descripcion,
-          estado,
-          email_contacto,
-          created_at,
-          updated_at
-        FROM tickets
-        WHERE estado = ${estado}
-        ORDER BY created_at DESC
-      `
-    } else {
-      result = await sql`
-        SELECT 
-          id,
-          tipo,
-          prioridad,
-          descripcion,
-          estado,
-          email_contacto,
-          created_at,
-          updated_at
-        FROM tickets
-        ORDER BY created_at DESC
-      `
-    }
-
-    return NextResponse.json(result)
-  } catch (error) {
-    console.error("[v0] Error fetching tickets:", error)
-    return NextResponse.json(
-      {
-        error: "Error al obtener tickets",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    const { tipo, prioridad, descripcion, email_contacto } = body
-
-    if (!tipo || !prioridad || !descripcion) {
-      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 })
-    }
-
-    const result = await sql`
-      INSERT INTO tickets (tipo, prioridad, descripcion, email_contacto, estado)
-      VALUES (${tipo}, ${prioridad}, ${descripcion}, ${email_contacto || null}, 'pendiente')
-      RETURNING *
-    `
-
-    return NextResponse.json(result[0], { status: 201 })
-  } catch (error) {
-    console.error("[v0] Error creating ticket:", error)
-    return NextResponse.json({ error: "Error al crear ticket" }, { status: 500 })
-  }
-}
+// POST - Crear ticket (público: lo usa "olvidé mi contraseña" del login)
+export const POST = withErrors({ error: "Error al crear ticket" }, async (request) => {
+  const input = await parseBody(request, crearTicketBody)
+  return NextResponse.json(await crearTicket(input), { status: 201 })
+})

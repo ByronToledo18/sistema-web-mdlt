@@ -1,34 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { NextResponse } from "next/server"
+import { withErrors } from "@/server/auth/guard"
+import { serviciosDelCatalogo } from "@/server/services/catalogo"
+import { catalogoPublicoQuery } from "@/server/validators/catalogo"
+import { parseQuery } from "@/server/validators/common"
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const search = searchParams.get("search") || ""
-
-    let query = sql`
-      SELECT 
-        id,
-        nombre,
-        unidad,
-        precio_base,
-        variable,
-        activo
-      FROM servicios
-      WHERE activo = true
-    `
-
-    if (search) {
-      query = sql`${query} AND nombre ILIKE ${"%" + search + "%"}`
-    }
-
-    query = sql`${query} ORDER BY nombre ASC`
-
-    const servicios = await query
-
-    return NextResponse.json(servicios)
-  } catch (error) {
-    console.error("[v0] Error fetching catalog services:", error)
-    return NextResponse.json({ error: "Error al obtener servicios" }, { status: 500 })
-  }
-}
+// GET - Servicios activos del catálogo público
+export const GET = withErrors({ error: "Error al obtener servicios" }, async (request) => {
+  const { search } = parseQuery(request, catalogoPublicoQuery)
+  return NextResponse.json(await serviciosDelCatalogo({ search }))
+})

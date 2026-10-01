@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { canAccessRoute } from "@/lib/permissions"
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -31,59 +32,51 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
       title: "Dashboard",
       href: "/admin/dashboard",
       icon: LayoutDashboard,
-      roles: ["administrador", "asistente", "soporte"],
     },
     {
       title: "Pedidos",
       href: "/admin/pedidos",
       icon: ShoppingCart,
-      roles: ["administrador", "asistente"],
     },
     {
       title: "Clientes",
       href: "/admin/clientes",
       icon: Users,
-      roles: ["administrador", "asistente"],
     },
     {
       title: "Inventario",
       href: "/admin/inventario",
       icon: Package,
-      roles: ["administrador", "asistente"],
     },
     {
       title: "Cobros",
       href: "/admin/pagos",
       icon: CreditCard,
-      roles: ["administrador"],
     },
     {
       title: "Envíos",
       href: "/admin/envios",
       icon: Truck,
-      roles: ["administrador", "asistente"],
     },
     {
       title: "Proveedores",
       href: "/admin/proveedores",
       icon: Building2,
-      roles: ["administrador"],
     },
     {
       title: "Nómina",
       href: "/admin/nomina",
       icon: DollarSign,
-      roles: ["administrador"],
     },
     {
       title: "Soporte",
       href: "/admin/soporte",
       icon: Shield,
-      roles: ["soporte"],
     },
   ]
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(userRole))
+  // Qué páginas ve cada rol: ROUTE_MODULES en lib/permissions.ts
+  const filteredNavItems = navItems.filter((item) => canAccessRoute(userRole, item.href))
 
   return (
     <aside

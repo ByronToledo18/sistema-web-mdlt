@@ -47,7 +47,7 @@ interface AuditLog {
 }
 
 export default function SoportePage() {
-  const router = useRouter()
+  const _router = useRouter()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [roles, setRoles] = useState<Rol[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])

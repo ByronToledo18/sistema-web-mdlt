@@ -142,7 +142,7 @@ export default function PedidosPage() {
       fetchPedidos()
 
       router.push(`/admin/pedidos/${data.pedido.id}`)
-    } catch (err) {
+    } catch {
       setError("Error al crear pedido")
     }
   }
@@ -203,7 +203,7 @@ export default function PedidosPage() {
                   <DialogHeader>
                     <DialogTitle>Nuevo Pedido</DialogTitle>
                     <DialogDescription>
-                      Crea un nuevo pedido. El código se generará automáticamente y el estado inicial será "Recibido".
+                      Crea un nuevo pedido. El código se generará automáticamente y el estado inicial será &quot;Recibido&quot;.
                     </DialogDescription>
                   </DialogHeader>
 

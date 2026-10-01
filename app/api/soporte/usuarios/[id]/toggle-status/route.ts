@@ -1,79 +1,23 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth"
-import { sql } from "@/lib/db"
-import { createAuditLog } from "@/lib/audit"
+import { NextResponse } from "next/server"
+import { withAuth } from "@/server/auth/guard"
+import { registrarAuditoria } from "@/server/services/auditoria"
+import { alternarEstadoUsuario } from "@/server/services/usuarios"
+import { idParams, parseParams } from "@/server/validators/common"
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await requireAuth(["soporte", "administrador"])
+// POST - Activar/desactivar usuario (nunca el último administrador o soporte activo)
+export const POST = withAuth<{ id: string }>(
+  { permission: { module: "usuarios", action: "update" }, error: "Error al cambiar estado del usuario" },
+  async (_request, { params }, user) => {
+    const { id } = await parseParams(params, idParams)
+    const activo = await alternarEstadoUsuario(id)
 
-    const [targetUser] = await sql`
-      SELECT u.activo, r.nombre as rol_nombre
-      FROM usuarios u
-      JOIN roles r ON u.rol_id = r.id
-      WHERE u.id = ${(await params).id}
-    `
-
-    if (!targetUser) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
-    }
-
-    if (targetUser.activo && targetUser.rol_nombre === "administrador") {
-      const [adminCount] = await sql`
-        SELECT COUNT(*) as count
-        FROM usuarios u
-        JOIN roles r ON u.rol_id = r.id
-        WHERE r.nombre = 'administrador' AND u.activo = true
-      `
-
-      if (Number(adminCount.count) <= 1) {
-        return NextResponse.json(
-          { error: "No se puede desactivar el último administrador activo del sistema" },
-          { status: 400 },
-        )
-      }
-    }
-
-    if (targetUser.activo && targetUser.rol_nombre === "soporte") {
-      const [soporteCount] = await sql`
-        SELECT COUNT(*) as count
-        FROM usuarios u
-        JOIN roles r ON u.rol_id = r.id
-        WHERE r.nombre = 'soporte' AND u.activo = true
-      `
-
-      if (Number(soporteCount.count) <= 1) {
-        return NextResponse.json(
-          { error: "No se puede desactivar el último usuario de soporte activo del sistema" },
-          { status: 400 },
-        )
-      }
-    }
-
-    const result = await sql`
-      UPDATE usuarios
-      SET activo = NOT activo,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${(await params).id}
-      RETURNING activo
-    `
-
-    const nuevoEstado = result[0].activo
-
-    // Registrar en auditoría
-    await createAuditLog({
+    await registrarAuditoria({
       usuario_id: user.id,
-      accion: nuevoEstado ? "ACTIVAR_USUARIO" : "DESACTIVAR_USUARIO",
+      accion: activo ? "ACTIVAR_USUARIO" : "DESACTIVAR_USUARIO",
       modulo: "usuarios",
-      descripcion: `Usuario ID ${(await params).id} ${nuevoEstado ? "activado" : "desactivado"}`,
+      descripcion: `Usuario ID ${id} ${activo ? "activado" : "desactivado"}`,
     })
 
-    return NextResponse.json({
-      success: true,
-      activo: nuevoEstado,
-    })
-  } catch (error) {
-    console.error("[v0] Error toggling user status:", error)
-    return NextResponse.json({ error: "Error al cambiar estado del usuario" }, { status: 500 })
-  }
-}
+    return NextResponse.json({ success: true, activo })
+  },
+)

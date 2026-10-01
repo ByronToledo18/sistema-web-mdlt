@@ -120,7 +120,7 @@ export default function ClientesPage() {
       }
 
       fetchClientes()
-    } catch (err) {
+    } catch {
       setError("Error al guardar cliente")
     }
   }
@@ -180,7 +180,7 @@ export default function ClientesPage() {
     setPasswordCopied(false)
   }
 
-  const canModify = userRole === "administrador" || userRole === "asistente"
+  const _canModify = userRole === "administrador" || userRole === "asistente"
   const canToggleStatus = userRole === "administrador"
 
   return (
