@@ -66,11 +66,17 @@ export const usuarios = pgTable(
     // Se incrementa al desactivar, cambiar de rol o resetear la contraseña:
     // invalida los JWT emitidos antes (ver lib/auth.ts).
     token_version: integer("token_version").notNull().default(0),
+    // Contraseña asignada por otra persona (soporte, administrador o
+    // scripts/create-admin.ts): hasta cambiarla, el usuario solo puede entrar
+    // a /cambiar-password (proxy.ts, requireUser, withAuth y adminAction).
+    debe_cambiar_password: boolean("debe_cambiar_password").notNull().default(false),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },
   (t) => [
-    index("idx_usuarios_email").on(t.email),
+    // Los emails se guardan normalizados y se buscan por lower(email) (ver
+    // emailIgual en server/services/auth.ts), que usa este índice.
+    uniqueIndex("usuarios_email_lower_key").on(sql`lower(${t.email})`),
     foreignKey({ columns: [t.rol_id], foreignColumns: [roles.id], name: "usuarios_rol_id_fkey" }),
     unique("usuarios_email_key").on(t.email),
   ],
@@ -148,9 +154,8 @@ export const clientes = pgTable(
     uniqueIndex("idx_clientes_cedula_unique")
       .on(t.cedula)
       .where(sql`(cedula IS NOT NULL)`),
-    index("idx_clientes_email").on(t.email),
-    uniqueIndex("idx_clientes_email_unique")
-      .on(t.email)
+    uniqueIndex("clientes_email_lower_key")
+      .on(sql`lower(${t.email})`)
       .where(sql`(email IS NOT NULL)`),
     unique("clientes_cedula_key").on(t.cedula),
   ],
@@ -168,6 +173,9 @@ export const productos = pgTable(
     created_at: createdAt(),
     updated_at: updatedAt(),
     imagen_url: text("imagen_url"),
+    // Los precios del catálogo NO incluyen IVA. Si grava, el pedido le suma
+    // el IVA (lib/iva.ts) a la línea.
+    graba_iva: boolean("graba_iva").notNull().default(true),
   },
   (t) => [unique("productos_sku_key").on(t.sku)],
 )
@@ -182,6 +190,8 @@ export const servicios = pgTable("servicios", {
   created_at: createdAt(),
   updated_at: updatedAt(),
   imagen_url: text("imagen_url"),
+  // Igual que productos.graba_iva (también para el servicio "Envío").
+  graba_iva: boolean("graba_iva").notNull().default(true),
 })
 
 export const tarifasEnvio = pgTable(
@@ -238,7 +248,13 @@ export const pedidoItems = pgTable(
     descripcion: text("descripcion"),
     cantidad: money("cantidad").notNull(),
     precio_unitario: money("precio_unitario").notNull(),
+    // subtotal = cantidad × precio_unitario, sin IVA.
     subtotal: money("subtotal").notNull(),
+    // Copiados del producto/servicio al agregar la línea: cambiar después el
+    // flag del catálogo no altera pedidos existentes. Las líneas anteriores a
+    // la migración 0003 quedan sin IVA (false / 0), con su total histórico.
+    graba_iva: boolean("graba_iva").notNull().default(false),
+    iva: money("iva").notNull().default("0"),
     created_at: createdAt(),
   },
   (t) => [
@@ -262,7 +278,10 @@ export const pedidoFacturas = pgTable(
     fecha_emision: date("fecha_emision")
       .default(sql`CURRENT_DATE`)
       .notNull(),
+    // subtotal = base imponible total (gravada + 0 %); subtotal_0 = la parte
+    // de ítems que no gravan IVA. total = subtotal + iva = pedidos.total.
     subtotal: money("subtotal").notNull(),
+    subtotal_0: money("subtotal_0").notNull().default("0"),
     iva: money("iva").notNull(),
     total: money("total").notNull(),
     estado: varchar("estado", { length: 20 }).default("emitida").notNull(),
