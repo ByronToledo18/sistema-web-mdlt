@@ -1,8 +1,8 @@
 import "server-only"
 
-import { count, inArray, sql } from "drizzle-orm"
+import { count, inArray, sql, type SQL } from "drizzle-orm"
 import { db } from "@/server/db/client"
-import { clientes, pedidos, productos } from "@/server/db/schema"
+import { clientes, PEDIDO_ESTADOS, pedidos, productos } from "@/server/db/schema"
 import { queryRows } from "./_shared"
 
 const STOCK_BAJO = 5
@@ -61,6 +61,52 @@ export async function resumenDashboard() {
     ventasMes: Number(ventasMes[0]?.total ?? 0),
     actividad: actividad.map((a): Actividad => ({ ...a, id: Number(a.id), fecha: aFecha(a.fecha) })),
   }
+}
+
+export interface VentasMes {
+  mes: string // "2026-09"
+  total: number
+  pedidos: number
+}
+
+// Ventas (pedidos.total, sin anulados) de los últimos `meses` meses en la hora
+// de Ecuador, incluido el actual. Los meses sin pedidos vienen en 0.
+export async function ventasPorMes(meses = 12, ahora: Date = new Date()): Promise<VentasMes[]> {
+  const mesActual = sql`DATE_TRUNC('month', ${ahora.toISOString()}::timestamptz AT TIME ZONE ${ZONA})`
+  const rows = await queryRows<{ mes: string; total: string; pedidos: string | number }>(
+    db,
+    sql`
+      WITH meses AS (
+        SELECT generate_series(${mesActual} - make_interval(months => ${meses - 1}), ${mesActual}, interval '1 month') AS mes
+      )
+      SELECT to_char(m.mes, 'YYYY-MM') AS mes, COALESCE(SUM(p.total), 0) AS total, COUNT(p.id) AS pedidos
+      FROM meses m
+      LEFT JOIN pedidos p
+        ON DATE_TRUNC('month', ${horaLocal(sql`p.created_at`)}) = m.mes
+        AND p.estado IS DISTINCT FROM 'anulado'
+      GROUP BY m.mes
+      ORDER BY m.mes
+    `,
+  )
+  return rows.map((r) => ({ mes: r.mes, total: Number(r.total), pedidos: Number(r.pedidos) }))
+}
+
+export type EstadoPedido = (typeof PEDIDO_ESTADOS)[number]
+
+// Cantidad de pedidos por estado; los 5 estados siempre aparecen, en el orden
+// del flujo.
+export async function pedidosPorEstado(): Promise<{ estado: EstadoPedido; cantidad: number }[]> {
+  const rows = await db.select({ estado: pedidos.estado, cantidad: count() }).from(pedidos).groupBy(pedidos.estado)
+  const porEstado = new Map(rows.map((r) => [r.estado, r.cantidad]))
+  return PEDIDO_ESTADOS.map((estado) => ({ estado, cantidad: porEstado.get(estado) ?? 0 }))
+}
+
+const ZONA = "America/Guayaquil"
+
+// Las columnas timestamp (sin zona) guardan UTC: primero se marcan como UTC y
+// luego se pasan a la hora local de Ecuador.
+function horaLocal(columna: SQL) {
+  return sql`((${columna}) AT TIME ZONE 'UTC') AT TIME ZONE ${ZONA}`
 }
 
 // En SQL crudo la fecha puede llegar como Date o como texto sin zona
