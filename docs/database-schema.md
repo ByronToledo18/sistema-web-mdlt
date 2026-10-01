@@ -27,7 +27,7 @@ erDiagram
         string cedula "unique, identificador canonico"
         string nombre
         string telefono
-        string email "unique"
+        string email "unique sobre lower(email) donde no es NULL"
         text direccion
         text notas
         text hash_password
@@ -44,7 +44,7 @@ erDiagram
         int cliente_id FK
         string estado "recibido|en_proceso|terminado|anulado|entregado"
         timestamp fecha_creacion
-        numeric total
+        numeric total "con IVA: suma de subtotal + iva de sus items"
         text notas
         numeric costo_envio
         string ciudad_envio
@@ -59,7 +59,9 @@ erDiagram
         text descripcion
         numeric cantidad
         numeric precio_unitario
-        numeric subtotal
+        numeric subtotal "cantidad x precio_unitario, sin IVA"
+        boolean graba_iva "copiado del producto/servicio al agregar la linea"
+        numeric iva "IVA de la linea, redondeado a centavos"
     }
 
     PEDIDO_FACTURAS {
@@ -67,9 +69,10 @@ erDiagram
         int pedido_id FK "unique - una factura por pedido"
         string numero_factura "FACT-YYYY-####, unique"
         date fecha_emision
-        numeric subtotal
+        numeric subtotal "base total (gravada + 0%)"
+        numeric subtotal_0 "base de los items que no gravan IVA"
         numeric iva
-        numeric total
+        numeric total "igual a pedidos.total"
         string estado "emitida|anulada"
     }
 
@@ -77,20 +80,22 @@ erDiagram
         int id PK
         string sku
         string nombre
-        numeric precio
+        numeric precio "sin IVA"
         int stock
         boolean activo
         text imagen_url
+        boolean graba_iva "default true"
     }
 
     SERVICIOS {
         int id PK
         string nombre
         string unidad
-        numeric precio_base
+        numeric precio_base "sin IVA"
         boolean variable
         boolean activo
         text imagen_url
+        boolean graba_iva "default true (tambien el servicio Envio)"
     }
 
     PAGOS {
@@ -210,9 +215,11 @@ erDiagram
         int id PK
         int rol_id FK
         string nombre
-        string email
+        string email "unique sobre lower(email)"
         string hash_password
         boolean activo
+        int token_version
+        boolean debe_cambiar_password "contraseña asignada por otra persona"
     }
 
     AUDITORIA {
@@ -247,6 +254,12 @@ Este diagrama se generó consultando `information_schema` directamente contra la
 - Columna `clientes.requiere_cambio_password` — reemplazada por `clientes.debe_cambiar_password` (la que sí usa `app/api/clientes/route.ts`), quedó huérfana.
 
 Ninguna de estas se eliminó — solo se documenta que existen pero no se usan, por si en algún momento quieren limpiar la base.
+
+**IVA (migración `0003_ronda_3`):** los precios del catálogo no incluyen IVA. `productos.graba_iva` y `servicios.graba_iva` (por defecto `true`) indican si el ítem grava el 15 % (`lib/iva.ts`, única fuente de la tarifa). Al agregar una línea, `pedido_items` copia `graba_iva` y guarda su `iva` redondeado a centavos; cambiar el flag del catálogo no altera pedidos existentes. `pedidos.total = Σ subtotal + Σ iva`: es lo que se cobra, lo que exige el cierre (saldo cero) y lo que suma la factura (`pedido_facturas.total`). Las líneas anteriores a la migración quedaron con `graba_iva = false` e `iva = 0`, así sus totales históricos no cambiaron.
+
+**Emails (migración `0003_ronda_3`):** se guardan normalizados (trim + minúsculas) y son únicos sin distinguir mayúsculas: `usuarios_email_lower_key` y `clientes_email_lower_key` (parcial, `WHERE email IS NOT NULL`) son índices únicos sobre `lower(email)`, la misma expresión que usa `emailIgual` en las búsquedas. Se quitaron `idx_usuarios_email`, `idx_clientes_email` e `idx_clientes_email_unique`, que quedaron redundantes; `usuarios_email_key` (UNIQUE sobre `email`) se mantiene.
+
+**`usuarios.debe_cambiar_password`:** queda en `true` cuando la contraseña la asigna otra persona (alta de usuario por soporte o un administrador, reseteo, `scripts/create-admin.ts`). Mientras esté activa el usuario solo puede usar `/cambiar-password`.
 
 **Relación `PEDIDO_ITEMS` → `PRODUCTOS`/`SERVICIOS`:** no es una foreign key real en la base de datos (no hay constraint), es una relación lógica resuelta en código según el valor de `item_tipo`. Se documenta como tal en el diagrama.
 
