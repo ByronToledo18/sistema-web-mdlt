@@ -59,7 +59,7 @@ export const POST = withAuth(
     // Nombre saneado con la extensión real; addRandomSuffix evita colisiones y
     // que se puedan adivinar las URLs de otras imágenes.
     const filename = `${slugify(file.name)}.${formato.ext}`
-    const blob = await put(filename, bytes, {
+    const blob = await put(filename, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
       access: "public",
       contentType: formato.type,
       addRandomSuffix: true,
