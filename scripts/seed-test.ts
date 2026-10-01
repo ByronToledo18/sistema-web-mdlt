@@ -1,10 +1,11 @@
-// Datos y credenciales para los e2e de Playwright, en una base de TEST
-// (una rama de Neon creada para eso, nunca la de producción).
+// Datos y credenciales para los e2e de Playwright, en la base de PRUEBAS
+// (mdlt-preview, la de Preview/Development en Vercel), nunca en producción.
 //
-// Uso:
-//   1. Crear una rama de Neon de test y aplicar las migraciones en ella.
-//   2. Poner su URL en .env.test.local como TEST_DATABASE_URL.
-//   3. pnpm db:seed-test
+// Uso: pnpm db:seed-test
+//   Toma TEST_DATABASE_URL (.env.test.local) o, si no existe, DATABASE_URL
+//   (.env.local). Solo escribe si esa base tiene el marcador de entorno de
+//   pruebas: la tabla `_entorno` con una única fila, 'preview'. Producción no
+//   tiene esa tabla y no debe tenerla, así que contra ella el seed aborta.
 //
 // Cada ejecución genera contraseñas nuevas al azar (nada escrito a mano) y
 // las deja en .env.e2e.local, que lee playwright.config.ts. En GitHub Actions
@@ -16,22 +17,44 @@ import { appendFileSync, writeFileSync } from "node:fs"
 import { neon } from "@neondatabase/serverless"
 import { eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/neon-http"
-import { hashPassword } from "@/lib/auth"
+import { hashPassword } from "@/lib/password"
 import * as schema from "@/server/db/schema"
 
 const { clientes, productos, roles, servicios, tarifasEnvio, usuarios } = schema
 
-const url = process.env.TEST_DATABASE_URL
-if (!url) {
-  console.error("Falta TEST_DATABASE_URL (la URL de la rama de Neon de test, en .env.test.local).")
-  process.exit(1)
-}
-if (url === process.env.DATABASE_URL) {
-  console.error("TEST_DATABASE_URL es igual a DATABASE_URL: el seed de test no corre contra la base principal.")
+function abortar(mensaje: string): never {
+  console.error(`seed-test abortado: ${mensaje}`)
   process.exit(1)
 }
 
+const url = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
+if (!url) abortar("falta TEST_DATABASE_URL o DATABASE_URL (la base de pruebas mdlt-preview).")
+
+function hostYBase(connectionString: string): string {
+  const u = new URL(connectionString)
+  // El pooler de Neon es el mismo endpoint con el sufijo -pooler.
+  return `${u.hostname.replace("-pooler.", ".")}/${u.pathname.replace(/^\//, "")}`
+}
+
+// Chequeo extra (opcional): si se conoce la URL de producción, no puede ser la misma base.
+if (process.env.PROD_DATABASE_URL && hostYBase(process.env.PROD_DATABASE_URL) === hostYBase(url)) {
+  abortar("la base indicada es la de producción (coincide con PROD_DATABASE_URL).")
+}
+
 const db = drizzle({ client: neon(url), schema })
+
+// Chequeo obligatorio: marcador de entorno de pruebas.
+async function exigirMarcadorPreview() {
+  let filas: { nombre: string }[]
+  try {
+    filas = (await db.execute(sql`SELECT nombre FROM _entorno`)).rows as { nombre: string }[]
+  } catch {
+    abortar(`la base ${hostYBase(url!)} no tiene la tabla _entorno: no es la base de pruebas.`)
+  }
+  if (filas.length !== 1 || filas[0].nombre !== "preview") {
+    abortar(`_entorno de ${hostYBase(url!)} no es exactamente ['preview'] (${JSON.stringify(filas.map((f) => f.nombre))}).`)
+  }
+}
 
 const password = () => randomBytes(12).toString("base64url")
 
@@ -64,6 +87,8 @@ async function usuario(datos: { email: string; nombre: string; rol: string }, pa
 }
 
 async function main() {
+  await exigirMarcadorPreview()
+
   const creds = {
     E2E_ADMIN_EMAIL: E2E.admin.email,
     E2E_ADMIN_PASSWORD: password(),

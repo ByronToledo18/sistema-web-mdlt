@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test"
-import { env, loginPortal, unico } from "./helpers"
+import { env, expect, test, loginPortal, unico } from "./helpers"
 
 // Catálogo: registro → carrito → checkout.
 test("un cliente nuevo se registra, arma el carrito y confirma el pedido", async ({ page }) => {
@@ -25,20 +24,17 @@ test("un cliente nuevo se registra, arma el carrito y confirma el pedido", async
 
   await page.getByRole("button", { name: "Abrir carrito de compras" }).filter({ visible: true }).first().click()
   await expect(page.getByRole("heading", { name: "Carrito de Compras" })).toBeVisible()
-  await expect(page.getByRole("heading", { name: producto })).toBeVisible()
+  await expect(page.getByRole("button", { name: `Aumentar cantidad de ${producto}` })).toBeVisible()
   await page.getByRole("button", { name: "Proceder al Pago" }).click()
 
   await expect(page.getByRole("heading", { name: "Finalizar Pedido" })).toBeVisible()
-  // Los datos vienen del perfil; se completan por si el formulario no los trae.
-  for (const [label, value] of [
-    [/^Nombre/, cliente.nombre],
-    [/^Cédula/, cliente.cedula],
-    [/^Teléfono/, cliente.telefono],
-  ] as const) {
-    const input = page.getByLabel(label)
-    if (!(await input.inputValue())) await input.fill(value)
-  }
-  await page.getByLabel("Retiro en Tienda").check()
+  // Los datos del cliente se cargan del perfil (campos bloqueados). Hay que
+  // esperar a que lleguen: al cargarse reinician el método de entrega.
+  await expect(page.getByLabel(/^Nombre Completo/)).toHaveValue(cliente.nombre)
+  await expect(page.getByLabel(/^Cédula/)).toHaveValue(cliente.cedula)
+  const retiro = page.getByLabel("Retiro en Tienda")
+  await retiro.check()
+  await expect(retiro).toBeChecked()
   await page.getByRole("button", { name: "Confirmar Pedido" }).click()
 
   await expect(page.getByRole("heading", { name: "¡Pedido Recibido!" })).toBeVisible()

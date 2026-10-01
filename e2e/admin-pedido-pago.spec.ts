@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test"
-import { env, loginAdmin } from "./helpers"
+import { env, expect, test, loginAdmin } from "./helpers"
 
 // Admin: login → crear pedido → agregar ítem → registrar pago.
 test("el administrador crea un pedido y registra el pago completo", async ({ page }) => {

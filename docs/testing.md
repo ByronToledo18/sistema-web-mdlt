@@ -38,14 +38,21 @@ Hay tres flujos en `e2e/`:
 
 Los selectores van por rol y texto visible, nunca por las llamadas a `/api`.
 
-**Nunca se corren contra producción, porque crean datos.** Para correrlos:
+**Nunca se corren contra producción, porque crean datos.** Se usa la base de pruebas **mdlt-preview** (la de Preview y Development en Vercel). Esa base tiene un marcador, la tabla `_entorno` con una única fila `'preview'`. Producción no lo tiene y no debe tenerlo.
 
-1. Crear una rama de Neon de test y aplicarle las migraciones.
-2. En `.env.test.local`, definir `TEST_DATABASE_URL=<url de esa rama>`.
-3. Ejecutar `pnpm db:seed-test`. Crea los usuarios E2E (admin y soporte), un cliente del portal, un producto con mucho stock, el servicio "Envío" y una tarifa. Las contraseñas son aleatorias y quedan en `.env.e2e.local`, que está en `.gitignore`.
-4. Correr una de estas dos opciones:
-   - `pnpm test:e2e` con `pnpm dev` apuntando a esa misma rama (`DATABASE_URL` = rama de test).
-   - `E2E_BASE_URL=<url del preview> pnpm test:e2e`.
+1. `.env.local` apuntando a mdlt-preview: `npx vercel env pull .env.local --environment=development`. Otra opción es poner `TEST_DATABASE_URL` en `.env.test.local`.
+2. `pnpm db:seed-test`. **Aborta sin escribir nada si la base no tiene el marcador.** Como chequeo adicional, también aborta si coincide con `PROD_DATABASE_URL`, cuando esa variable existe. El seed crea:
+   - los usuarios E2E (admin y soporte)
+   - un cliente del portal
+   - un producto con mucho stock
+   - el servicio "Envío" y una tarifa
+
+   Las contraseñas son aleatorias y quedan en `.env.e2e.local`, que está en `.gitignore`.
+3. Correr una de estas dos opciones:
+   - **`pnpm test:e2e`:** hace `next build` y `next start` en el puerto 3002 (`E2E_PORT`), con la base de `.env.local`. No usa `next dev`, porque compila cada ruta en la primera visita y se queda sin memoria.
+   - **`E2E_BASE_URL=<url> pnpm test:e2e`:** corre contra un servidor que ya esté levantado o contra un preview de Vercel.
+
+**Rate limit:** cada test manda una IP propia en `x-forwarded-for` (fixture en `e2e/helpers.ts`), así los límites de login y registro no se acumulan entre tests contra un servidor local. En Vercel la plataforma reescribe esa cabecera y el límite se aplica igual que en producción. No hay reintentos automáticos, porque cada intento repite logins.
 
 ## CI (`.github/workflows/`)
 
