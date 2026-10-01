@@ -1,278 +1,47 @@
-"use client"
-
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Calendar, DollarSign, Package, Truck } from "lucide-react"
+import { BackButton } from "@/components/ui/back-button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Package, Truck, DollarSign, Calendar, FileText } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { BackButton } from "@/components/ui/back-button"
+import { PagoServientregaDialog } from "@/components/admin/envios/pago-servientrega-dialog"
+import { RegistrarGuiaButton } from "@/components/admin/envios/registrar-guia-button"
+import { formatCurrency, formatDate, MESES } from "@/components/admin/format"
+import { PeriodoSelector } from "@/components/admin/periodo-selector"
+import { can } from "@/server/auth/guard"
+import { requirePermission } from "@/server/auth/session"
+import { consolidacionServientrega, listarEnvios } from "@/server/services/envios"
+import { periodoQuery } from "@/server/validators/pagos"
 
-interface Envio {
-  id: number
-  pedido_id: number
-  pedido_codigo: string
-  cliente_nombre: string
-  guia: string
-  fecha_envio: string
-  estado: string
-  costo: string
+const estadoColors: Record<string, string> = {
+  pendiente: "bg-yellow-500",
+  en_proceso: "bg-blue-500",
+  enviado: "bg-blue-500",
+  terminado: "bg-green-500",
+  anulado: "bg-red-500",
 }
 
-interface ConsolidacionServientrega {
-  cuenta: {
-    id: number
-    periodo: string
-    total_cargos: number
-    total_pagado: number
-    saldo: number
-  }
-  detalles: Array<{
-    id: number
-    envio_id: number
-    monto: string
-    guia: string
-    pedido_codigo: string
-    fecha_envio: string
-  }>
+const estadoLabels: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_proceso: "En Proceso",
+  enviado: "Enviado",
+  terminado: "Terminado",
+  anulado: "Anulado",
 }
 
-export default function EnviosPage() {
-  const [envios, setEnvios] = useState<Envio[]>([])
-  const [consolidacion, setConsolidacion] = useState<ConsolidacionServientrega | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [pagoDialogOpen, setPagoDialogOpen] = useState(false)
-  const [guiaDialogOpen, setGuiaDialogOpen] = useState(false)
-  const [guiaDialogEnvioId, setGuiaDialogEnvioId] = useState<number | null>(null)
-  const [guiaInput, setGuiaInput] = useState("")
-  const [error, setError] = useState("")
-  const [userRole, setUserRole] = useState<string>("")
+type SearchParams = Promise<{ year?: string; month?: string }>
 
-  const currentDate = new Date()
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
+export default async function EnviosPage({ searchParams }: { searchParams: SearchParams }) {
+  const user = await requirePermission("envios")
+  const parsed = periodoQuery.safeParse(await searchParams)
+  const { year, month } = parsed.success ? parsed.data : periodoQuery.parse({})
 
-  const [pagoForm, setPagoForm] = useState({
-    monto: "",
-    metodo: "",
-    referencia: "",
-  })
-
-  useEffect(() => {
-    fetchEnvios()
-    fetchUserRole()
-  }, [])
-
-  useEffect(() => {
-    fetchConsolidacion()
-  }, [selectedYear, selectedMonth])
-
-  const fetchEnvios = async () => {
-    try {
-      const response = await fetch("/api/envios")
-      const data = await response.json()
-
-      if (response.ok) {
-        setEnvios(data.envios)
-      }
-    } catch (err) {
-      console.error("[v0] Error fetching envios:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchConsolidacion = async () => {
-    try {
-      const response = await fetch(`/api/servientrega/consolidacion?year=${selectedYear}&month=${selectedMonth}`)
-      const data = await response.json()
-
-      if (response.ok) {
-        setConsolidacion(data)
-      }
-    } catch (err) {
-      console.error("[v0] Error fetching consolidacion:", err)
-    }
-  }
-
-  const fetchUserRole = async () => {
-    try {
-      const response = await fetch("/api/auth/me")
-      const data = await response.json()
-      if (response.ok) {
-        setUserRole(data.user.rol)
-      }
-    } catch (err) {
-      console.error("[v0] Error fetching user role:", err)
-    }
-  }
-
-  // Servientrega no tiene una API de autoservicio (requiere credenciales
-  // corporativas solicitadas directamente a Servientrega - ver contexto del
-  // proyecto). Hasta tener esas credenciales, este flujo es honesto: el admin
-  // genera la guía manualmente en el portal de Servientrega y la registra aquí.
-  const openGuiaDialog = (envio: Envio) => {
-    setGuiaDialogEnvioId(envio.id)
-    setGuiaInput(envio.guia)
-    setError("")
-    setGuiaDialogOpen(true)
-  }
-
-  const handleConfirmGuia = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!guiaDialogEnvioId) return
-
-    if (!guiaInput.trim()) {
-      setError("Ingresa el número de guía generado en el portal de Servientrega")
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/envios/${guiaDialogEnvioId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estado: "en_proceso",
-          guia: guiaInput.trim(),
-        }),
-      })
-
-      if (response.ok) {
-        setGuiaDialogOpen(false)
-        setGuiaDialogEnvioId(null)
-        fetchEnvios()
-        fetchConsolidacion()
-      } else {
-        const data = await response.json()
-        setError(data.error || "Error al registrar la guía")
-      }
-    } catch (err) {
-      console.error("[v0] Error registering guide:", err)
-      setError("Error al registrar la guía")
-    }
-  }
-
-  const handleAgregarACuenta = async (envioId: number) => {
-    try {
-      const response = await fetch("/api/servientrega/consolidacion", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          envio_id: envioId,
-          year: selectedYear,
-          month: selectedMonth,
-        }),
-      })
-
-      if (response.ok) {
-        fetchConsolidacion()
-        alert("Envío agregado a la cuenta de Servientrega")
-      }
-    } catch (err) {
-      console.error("[v0] Error adding to cuenta:", err)
-      alert("Error al agregar envío a la cuenta")
-    }
-  }
-
-  const handleRegistrarPago = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-
-    if (!consolidacion || !pagoForm.monto) {
-      setError("El monto es requerido")
-      return
-    }
-
-    try {
-      const response = await fetch("/api/servientrega/pagar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cuenta_id: consolidacion.cuenta.id,
-          monto: Number.parseFloat(pagoForm.monto),
-          metodo: pagoForm.metodo || null,
-          referencia: pagoForm.referencia || null,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error)
-        return
-      }
-
-      setPagoDialogOpen(false)
-      setPagoForm({ monto: "", metodo: "", referencia: "" })
-      fetchConsolidacion()
-      alert("Pago registrado exitosamente")
-    } catch (err) {
-      setError("Error al registrar pago")
-    }
-  }
-
-  const formatCurrency = (value: string | number) => {
-    return new Intl.NumberFormat("es-EC", {
-      style: "currency",
-      currency: "USD",
-    }).format(typeof value === "string" ? Number.parseFloat(value) : value)
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-EC", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
-  const estadoColors: Record<string, string> = {
-    pendiente: "bg-yellow-500",
-    en_proceso: "bg-blue-500",
-    enviado: "bg-blue-500",
-    terminado: "bg-green-500",
-    anulado: "bg-red-500",
-  }
-
-  const estadoLabels: Record<string, string> = {
-    pendiente: "Pendiente",
-    en_proceso: "En Proceso",
-    enviado: "Enviado",
-    terminado: "Terminado",
-    anulado: "Anulado",
-  }
-
-  const months = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
-  ]
-
-  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - i)
+  const canSeeCuenta = can(user, "servientrega", "read")
+  const [envios, consolidacion] = await Promise.all([
+    listarEnvios(),
+    canSeeCuenta ? consolidacionServientrega(year, month) : null,
+  ])
+  const canUpdateEnvio = can(user, "envios", "update")
+  const canPayCuenta = can(user, "servientrega", "update")
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -293,10 +62,12 @@ export default function EnviosPage() {
               <Package className="mr-2 h-4 w-4" />
               Envíos
             </TabsTrigger>
-            <TabsTrigger value="servientrega">
-              <Truck className="mr-2 h-4 w-4" />
-              Cuenta Servientrega
-            </TabsTrigger>
+            {consolidacion && (
+              <TabsTrigger value="servientrega">
+                <Truck className="mr-2 h-4 w-4" />
+                Cuenta Servientrega
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="envios" className="space-y-4">
@@ -306,9 +77,7 @@ export default function EnviosPage() {
                 <CardDescription>Todos los envíos registrados en el sistema</CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">Cargando envíos...</div>
-                ) : envios.length === 0 ? (
+                {envios.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     No hay envíos registrados. Los envíos se crean desde la página de cada pedido.
                   </div>
@@ -320,10 +89,10 @@ export default function EnviosPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium">{envio.guia}</p>
                             <Badge variant="outline">{envio.pedido_codigo}</Badge>
-                            <Badge className={estadoColors[envio.estado]}>{estadoLabels[envio.estado]}</Badge>
+                            <Badge className={estadoColors[envio.estado ?? ""]}>{estadoLabels[envio.estado ?? ""]}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {envio.cliente_nombre} • {formatDate(envio.fecha_envio)}
+                            {envio.cliente_nombre} • {formatDate(envio.fecha_envio, "short")}
                           </p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -331,11 +100,8 @@ export default function EnviosPage() {
                             <p className="text-sm text-muted-foreground">Costo</p>
                             <p className="font-bold">{formatCurrency(envio.costo)}</p>
                           </div>
-                          {["pendiente", "en_proceso"].includes(envio.estado) ? (
-                            <Button variant="default" size="sm" onClick={() => openGuiaDialog(envio)}>
-                              <FileText className="mr-2 h-4 w-4" />
-                              Registrar Guía
-                            </Button>
+                          {envio.estado === "pendiente" || envio.estado === "en_proceso" ? (
+                            canUpdateEnvio && <RegistrarGuiaButton envio={{ id: envio.id, guia: envio.guia }} />
                           ) : (
                             <Badge variant="secondary" className="px-3 py-1">
                               Guía Generada
@@ -350,266 +116,112 @@ export default function EnviosPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="servientrega" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Seleccionar Período</CardTitle>
-                <CardDescription>Elige el mes y año para ver la cuenta de Servientrega</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Label>Mes</Label>
-                    <Select
-                      value={selectedMonth.toString()}
-                      onValueChange={(value) => setSelectedMonth(Number.parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {months.map((month, index) => (
-                          <SelectItem key={index} value={(index + 1).toString()}>
-                            {month}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+          {consolidacion && (
+            <TabsContent value="servientrega" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Seleccionar Período</CardTitle>
+                  <CardDescription>Elige el mes y año para ver la cuenta de Servientrega</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PeriodoSelector year={year} month={month} />
+                </CardContent>
+              </Card>
 
-                  <div className="flex-1">
-                    <Label>Año</Label>
-                    <Select
-                      value={selectedYear.toString()}
-                      onValueChange={(value) => setSelectedYear(Number.parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {consolidacion && (
-              <>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Cargos</CardTitle>
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{formatCurrency(consolidacion.cuenta.total_cargos)}</div>
-                      <p className="text-xs text-muted-foreground">
-                        {months[selectedMonth - 1]} {selectedYear}
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Pagado</CardTitle>
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-green-600">
-                        {formatCurrency(consolidacion.cuenta.total_pagado)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Pagos realizados</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Saldo Pendiente</CardTitle>
-                      <Truck className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div
-                        className={`text-2xl font-bold ${consolidacion.cuenta.saldo > 0 ? "text-orange-600" : "text-green-600"}`}
-                      >
-                        {formatCurrency(consolidacion.cuenta.saldo)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Por pagar</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Envíos</CardTitle>
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{consolidacion.detalles.length}</div>
-                      <p className="text-xs text-muted-foreground">En este período</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Detalle de Envíos</CardTitle>
-                        <CardDescription>
-                          Envíos incluidos en la cuenta de {months[selectedMonth - 1]} {selectedYear}
-                        </CardDescription>
-                      </div>
-                      {consolidacion.cuenta.saldo > 0 && userRole === "administrador" && (
-                        <Dialog open={pagoDialogOpen} onOpenChange={setPagoDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button>
-                              <DollarSign className="mr-2 h-4 w-4" />
-                              Registrar Pago
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <form onSubmit={handleRegistrarPago}>
-                              <DialogHeader>
-                                <DialogTitle>Registrar Pago a Servientrega</DialogTitle>
-                                <DialogDescription>
-                                  Saldo pendiente: {formatCurrency(consolidacion.cuenta.saldo)}
-                                </DialogDescription>
-                              </DialogHeader>
-
-                              <div className="grid gap-4 py-4">
-                                {error && (
-                                  <Alert variant="destructive">
-                                    <AlertDescription>{error}</AlertDescription>
-                                  </Alert>
-                                )}
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="monto">Monto a Pagar *</Label>
-                                  <Input
-                                    id="monto"
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    max={consolidacion.cuenta.saldo}
-                                    value={pagoForm.monto}
-                                    onChange={(e) => setPagoForm({ ...pagoForm, monto: e.target.value })}
-                                    required
-                                  />
-                                  <p className="text-xs text-muted-foreground">
-                                    Máximo: {formatCurrency(consolidacion.cuenta.saldo)}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="metodo">Medio de Pago *</Label>
-                                  <Select
-                                    value={pagoForm.metodo}
-                                    onValueChange={(value) => setPagoForm({ ...pagoForm, metodo: value })}
-                                    required
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecciona un método" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="efectivo">Efectivo</SelectItem>
-                                      <SelectItem value="transferencia">Transferencia</SelectItem>
-                                      <SelectItem value="tarjeta">Tarjeta</SelectItem>
-                                      <SelectItem value="cheque">Cheque</SelectItem>
-                                      <SelectItem value="otro">Otro</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="referencia">Referencia *</Label>
-                                  <Input
-                                    id="referencia"
-                                    value={pagoForm.referencia}
-                                    onChange={(e) => setPagoForm({ ...pagoForm, referencia: e.target.value })}
-                                    placeholder="Número de transacción, cheque, etc."
-                                    required
-                                  />
-                                </div>
-                              </div>
-
-                              <DialogFooter>
-                                <Button type="submit">Registrar Pago</Button>
-                              </DialogFooter>
-                            </form>
-                          </DialogContent>
-                        </Dialog>
-                      )}
-                    </div>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Cargos</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    {consolidacion.detalles.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No hay envíos en este período. Agrega envíos desde la pestaña "Envíos".
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {consolidacion.detalles.map((detalle) => (
-                          <div key={detalle.id} className="flex items-center justify-between p-4 border rounded-lg">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-medium">{detalle.guia}</p>
-                                <Badge variant="outline">{detalle.pedido_codigo}</Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">{formatDate(detalle.fecha_envio)}</p>
-                            </div>
-                            <p className="font-bold text-lg">{formatCurrency(detalle.monto)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="text-2xl font-bold">{formatCurrency(consolidacion.cuenta.total_cargos)}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {MESES[month - 1]} {year}
+                    </p>
                   </CardContent>
                 </Card>
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
 
-        <Dialog open={guiaDialogOpen} onOpenChange={setGuiaDialogOpen}>
-          <DialogContent>
-            <form onSubmit={handleConfirmGuia}>
-              <DialogHeader>
-                <DialogTitle>Registrar Guía de Servientrega</DialogTitle>
-                <DialogDescription>
-                  Genera la guía manualmente en el portal de Servientrega y pega aquí el número real. Esto no llama a
-                  ninguna API externa: Servientrega requiere credenciales corporativas que aún no tenemos configuradas.
-                </DialogDescription>
-              </DialogHeader>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Pagado</CardTitle>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(consolidacion.cuenta.total_pagado)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Pagos realizados</p>
+                  </CardContent>
+                </Card>
 
-              <div className="grid gap-4 py-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Saldo Pendiente</CardTitle>
+                    <Truck className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div
+                      className={`text-2xl font-bold ${consolidacion.cuenta.saldo > 0 ? "text-orange-600" : "text-green-600"}`}
+                    >
+                      {formatCurrency(consolidacion.cuenta.saldo)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Por pagar</p>
+                  </CardContent>
+                </Card>
 
-                <div className="space-y-2">
-                  <Label htmlFor="guia-real">Número de Guía *</Label>
-                  <Input
-                    id="guia-real"
-                    value={guiaInput}
-                    onChange={(e) => setGuiaInput(e.target.value)}
-                    placeholder="Número de guía de Servientrega"
-                    required
-                  />
-                </div>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Envíos</CardTitle>
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{consolidacion.detalles.length}</div>
+                    <p className="text-xs text-muted-foreground">En este período</p>
+                  </CardContent>
+                </Card>
               </div>
 
-              <DialogFooter>
-                <Button type="submit">Registrar Guía</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Detalle de Envíos</CardTitle>
+                      <CardDescription>
+                        Envíos incluidos en la cuenta de {MESES[month - 1]} {year}
+                      </CardDescription>
+                    </div>
+                    {consolidacion.cuenta.saldo > 0 && canPayCuenta && (
+                      <PagoServientregaDialog cuentaId={consolidacion.cuenta.id} saldo={consolidacion.cuenta.saldo} />
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {consolidacion.detalles.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No hay envíos en este período. Agrega envíos desde la pestaña "Envíos".
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {consolidacion.detalles.map((detalle) => (
+                        <div key={detalle.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium">{detalle.guia}</p>
+                              <Badge variant="outline">{detalle.pedido_codigo}</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{formatDate(detalle.fecha_envio, "short")}</p>
+                          </div>
+                          <p className="font-bold text-lg">{formatCurrency(detalle.monto)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </div>
   )
