@@ -5,6 +5,7 @@ import { cookies } from "next/headers"
 import { verifyAdminToken, verifyPortalToken, type ClientePayload, type UserPayload } from "@/lib/jwt"
 import { db } from "@/server/db/client"
 import { clientes, roles, usuarios } from "@/server/db/schema"
+import { logger } from "@/lib/logger"
 
 export type { ClientePayload, UserPayload } from "@/lib/jwt"
 export { generatePortalToken, generateToken } from "@/lib/jwt"
@@ -159,7 +160,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     const isValid = computedHashHex === hashHex
     return isValid
   } catch (error) {
-    console.error("[v0] Password verification error:", error)
+    logger.error("lib/auth verifyPassword", error)
     return false
   }
 }

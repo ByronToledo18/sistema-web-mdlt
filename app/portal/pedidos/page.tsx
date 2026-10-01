@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Package, Clock, CheckCircle, XCircle, Truck, ArrowLeft } from "lucide-react"
+import { logger } from "@/lib/logger"
 
 interface Pedido {
   id: number
@@ -42,7 +43,7 @@ export default function ClientePedidosPage() {
       }
       fetchPedidos()
     } catch (error) {
-      console.error("[v0] Auth error:", error)
+      logger.error("portal/pedidos: verificar sesión", error)
       router.push("/portal/login")
     }
   }
@@ -55,7 +56,7 @@ export default function ClientePedidosPage() {
         setPedidos(data.pedidos || [])
       }
     } catch (error) {
-      console.error("[v0] Error fetching pedidos:", error)
+      logger.error("portal/pedidos: cargar pedidos", error)
     } finally {
       setLoading(false)
     }

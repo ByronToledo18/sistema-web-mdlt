@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { createAuditLog } from "@/lib/audit"
 import { verifyToken } from "@/lib/jwt"
 import type { NextRequest } from "next/server"
+import { logger } from "@/lib/logger"
 
 export async function GET() {
   return NextResponse.json({ error: "Method not allowed. Use POST to logout." }, { status: 405 })
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Logout error:", error)
+    logger.error("api/auth/logout POST", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
   }
 }

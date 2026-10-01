@@ -5,6 +5,7 @@ import { ZodError } from "zod"
 import { getClienteFromToken, getCurrentUser, type ClientePayload, type UserPayload } from "@/lib/auth"
 import { apiError, HttpError } from "@/lib/http"
 import { hasPermission, type Action, type Module } from "@/lib/permissions"
+import { logger } from "@/lib/logger"
 
 export type RouteContext<P> = { params: Promise<P> }
 
@@ -26,7 +27,7 @@ export function routeError(error: unknown, fallbackMsg: string) {
     return apiError(new HttpError(400, error.issues[0]?.message ?? "Datos inválidos"))
   }
   if (!(error instanceof HttpError) || error.status >= 500) {
-    console.error(`[api] ${fallbackMsg}:`, error)
+    logger.error(`api: ${fallbackMsg}`, error)
   }
   return apiError(error, fallbackMsg)
 }

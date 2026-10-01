@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { hashPassword } from "@/lib/auth"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ cliente }, { status: 201 })
   } catch (error) {
-    console.error("[v0] Registration error:", error)
+    logger.error("api/portal/registro POST", error)
     return apiError(error, "Error al registrarse")
   }
 }

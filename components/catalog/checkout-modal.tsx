@@ -10,6 +10,7 @@ import { Alert } from "@/components/ui/alert"
 import { X, Loader2, Search } from "lucide-react"
 import { useState, useEffect } from "react"
 import { getCart, clearCart } from "@/lib/cart"
+import { logger } from "@/lib/logger"
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -66,7 +67,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setTarifas(data.tarifas || [])
       }
     } catch (error) {
-      console.error("[v0] Error fetching tarifas:", error)
+      logger.error("catalogo/checkout: cargar tarifas", error)
     }
   }
 
@@ -86,7 +87,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         })
       }
     } catch (error) {
-      console.error("[v0] Error checking client auth:", error)
+      logger.error("catalogo/checkout: verificar sesión del cliente", error)
       setIsClientLoggedIn(false)
     }
   }

@@ -4,6 +4,7 @@ import { verifyPassword, generatePortalToken } from "@/lib/auth"
 import { cookies } from "next/headers"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("[v0] Login error:", error)
+    logger.error("api/portal/login POST", error)
     return apiError(error, "Error al iniciar sesión")
   }
 }

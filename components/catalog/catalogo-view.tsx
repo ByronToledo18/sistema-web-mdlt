@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { logger } from "@/lib/logger"
 
 export interface Producto {
   id: number
@@ -121,7 +122,7 @@ export function CatalogoView({ productos, servicios }: CatalogoViewProps) {
       setClientName("")
       window.location.href = "/catalogo"
     } catch (err) {
-      console.error("[v0] Error logging out:", err)
+      logger.error("catalogo: cerrar sesión", err)
     }
   }
 

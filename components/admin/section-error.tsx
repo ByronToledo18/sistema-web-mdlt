@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BackButton } from "@/components/ui/back-button"
+import { logger } from "@/lib/logger"
 
 // Cuerpo común de los error.tsx del admin. El mensaje real del error nunca se
 // muestra (en producción Next solo manda el digest); queda en el log.
@@ -19,7 +20,7 @@ export function SectionError({
   backLabel?: string
 }) {
   useEffect(() => {
-    console.error("[admin] Error al renderizar la sección:", error)
+    logger.error("admin: error al renderizar la sección", error)
   }, [error])
 
   return (

@@ -5,6 +5,7 @@ import { getClienteFromToken } from "@/lib/auth"
 import { generarImagenDiseno } from "@/lib/gemini"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 const MAX_DISENOS_POR_DIA = 5
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ diseno: result[0] }, { status: 201 })
   } catch (error) {
-    console.error("[v0] Generar diseño error:", error)
+    logger.error("api/catalogo/disenar POST", error)
     return apiError(error, "Error al generar el diseño")
   }
 }
@@ -89,7 +90,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ disenos })
   } catch (error) {
-    console.error("[v0] Get disenos error:", error)
+    logger.error("api/catalogo/disenar GET", error)
     return apiError(error, "Error al obtener diseños")
   }
 }

@@ -4,6 +4,7 @@ import { generateToken, verifyPassword } from "@/lib/auth"
 import { cookies } from "next/headers"
 import { createAuditLog } from "@/lib/audit"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("[v0] Login error:", error)
+    logger.error("api/auth/login POST", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
   }
 }

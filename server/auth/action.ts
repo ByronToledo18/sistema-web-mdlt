@@ -6,6 +6,7 @@ import { HttpError } from "@/lib/http"
 import type { Action, Module } from "@/lib/permissions"
 import { assertCan } from "@/server/auth/guard"
 import { getSessionUser } from "@/server/auth/session"
+import { logger } from "@/lib/logger"
 
 // Resultado de una Server Action. Los errores esperados (validación, permisos,
 // reglas de negocio) viajan como `error` para mostrarse en la UI; las
@@ -47,7 +48,7 @@ export async function adminAction<T>(
     if (error instanceof HttpError && error.status < 500) {
       return { ok: false, error: error.message }
     }
-    console.error(`[action] ${options.error}:`, error)
+    logger.error(`action: ${options.error}`, error)
     return { ok: false, error: options.error }
   }
 }

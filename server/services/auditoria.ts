@@ -3,6 +3,7 @@ import "server-only"
 import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/server/db/client"
 import { auditoria, usuarios } from "@/server/db/schema"
+import { logger } from "@/lib/logger"
 
 export interface RegistrarAuditoria {
   usuario_id?: number
@@ -33,12 +34,11 @@ export async function registrarAuditoria(params: RegistrarAuditoria): Promise<vo
       metadata: params.metadata ?? null,
     })
   } catch (error) {
-    console.error("[auditoria] Registro perdido:", {
+    logger.error("services/auditoria: registro perdido", error, {
       usuario_id: params.usuario_id ?? null,
       accion: params.accion,
       modulo: params.modulo,
       descripcion: params.descripcion ?? null,
-      error: error instanceof Error ? error.message : error,
     })
   }
 }

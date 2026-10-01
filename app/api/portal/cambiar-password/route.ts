@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { cookies } from "next/headers"
 import { hashPassword, verifyPassword, getClienteFromToken, generatePortalToken } from "@/lib/auth"
 import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Change password error:", error)
+    logger.error("api/portal/cambiar-password POST", error)
     return apiError(error, "Error al cambiar contraseña")
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST() {
   try {
@@ -9,7 +10,7 @@ export async function POST() {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Logout error:", error)
+    logger.error("api/portal/logout POST", error)
     return apiError(error, "Error al cerrar sesión")
   }
 }

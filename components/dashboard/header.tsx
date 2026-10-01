@@ -16,6 +16,7 @@ import { Bell, LogOut, User, Menu } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
+import { logger } from "@/lib/logger"
 
 interface HeaderProps {
   userName: string
@@ -93,7 +94,7 @@ export function Header({ userName, userRole, onMenuClick }: HeaderProps) {
         router.push("/login")
       }
     } catch (error) {
-      console.error("Error al cerrar sesión:", error)
+      logger.error("admin/header: cerrar sesión", error)
     }
   }
 

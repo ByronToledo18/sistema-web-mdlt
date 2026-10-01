@@ -5,6 +5,7 @@ import { MapPin, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { logger } from "@/lib/logger"
 
 interface Tarifa {
   id: number
@@ -34,7 +35,7 @@ export function LocationMap({ onLocationSelect, selectedCiudad }: LocationMapPro
       const data = await response.json()
       setTarifas(data.tarifas || [])
     } catch (error) {
-      console.error("[v0] Error fetching tarifas:", error)
+      logger.error("catalogo/mapa: cargar tarifas", error)
     } finally {
       setLoading(false)
     }

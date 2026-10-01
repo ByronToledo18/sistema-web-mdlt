@@ -4,6 +4,7 @@ import { generateWhatsAppLink } from "@/lib/whatsapp"
 import crypto from "crypto"
 import { rateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit"
 import { apiError } from "@/lib/http"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Password recovery error:", error)
+    logger.error("api/portal/recuperar-password POST", error)
     return apiError(error, "Error al procesar solicitud")
   }
 }

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, User, Lock, ArrowLeft, CheckCircle2, LogOut } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { logger } from "@/lib/logger"
 
 interface Cliente {
   id: number
@@ -67,7 +68,7 @@ export default function PerfilPage() {
         direccion: data.cliente.direccion || "",
       })
     } catch (err) {
-      console.error("[v0] Error fetching cliente:", err)
+      logger.error("portal/perfil: cargar cliente", err)
       router.push("/portal/login")
     } finally {
       setLoading(false)
@@ -155,7 +156,7 @@ export default function PerfilPage() {
       await fetch("/api/portal/logout", { method: "POST" })
       window.location.href = "/catalogo"
     } catch (err) {
-      console.error("[v0] Error logging out:", err)
+      logger.error("portal/perfil: cerrar sesión", err)
     }
   }
 
