@@ -11,16 +11,13 @@
 // las deja en .env.e2e.local, que lee playwright.config.ts. En GitHub Actions
 // las exporta además a $GITHUB_ENV enmascaradas. Es idempotente: actualiza
 // las filas E2E si ya existen.
-//
-// Se ejecuta con --conditions=react-server para que el import "server-only"
-// de lib/auth resuelva a un módulo vacío fuera de Next.
 
 import { randomBytes } from "node:crypto"
 import { appendFileSync, writeFileSync } from "node:fs"
 import { neon } from "@neondatabase/serverless"
 import { eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/neon-http"
-import { hashPassword } from "@/lib/auth"
+import { hashPassword } from "@/lib/password"
 import * as schema from "@/server/db/schema"
 
 const { clientes, productos, roles, servicios, tarifasEnvio, usuarios } = schema

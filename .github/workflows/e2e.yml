@@ -36,11 +36,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Seed de test (credenciales aleatorias)
-        run: node --conditions=react-server --import tsx scripts/seed-test.ts
+        run: node --import tsx scripts/seed-test.ts
         env:
           TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-          # lib/auth importa server/db/client, que exige DATABASE_URL al cargar.
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
 
       - run: pnpm exec playwright install --with-deps chromium
 
