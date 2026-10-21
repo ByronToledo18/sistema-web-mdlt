@@ -30,7 +30,7 @@ Las tres áreas comparten la base de datos y los route handlers de `app/api/`.
 - `/admin/clientes`: clientes.
 - `/admin/inventario`: productos y servicios.
 - `/admin/pagos`: pagos, consolidación y reportes.
-- `/admin/envios`: envíos y cuenta de Servientrega.
+- `/admin/envios`: envíos, guías de Servientrega (API) y cuenta de Servientrega.
 - `/admin/proveedores` y `/admin/proveedores/[id]/facturas`: proveedores y facturas de compra.
 - `/admin/nomina`: nómina de costureras.
 - `/admin/soporte`: usuarios, tickets y auditoría.
@@ -85,12 +85,33 @@ Las tres áreas comparten la base de datos y los route handlers de `app/api/`.
 ## Base de datos
 
 - PostgreSQL en Neon con Drizzle ORM (`server/db`): `db` (HTTP) para lecturas y `withTx` (Pool/WebSocket) para transacciones. El stock se descuenta de forma atómica dentro de la transacción del pedido.
-- Las migraciones están en `drizzle/` y se aplican con drizzle-kit: `0000_baseline` (schema), `0001_datos_referencia`, `0002_servientrega_envio_unico` y `0003_ronda_3` (IVA por ítem, `usuarios.debe_cambiar_password`, emails únicos por `lower(email)`). Los `scripts/0xx-*.sql` son historial previo. Los scripts destructivos están en `scripts/dangerous/`.
+- Las migraciones están en `drizzle/` y se aplican con drizzle-kit: `0000_baseline` (schema), `0001_datos_referencia`, `0002_servientrega_envio_unico`, `0003_ronda_3` (IVA por ítem, `usuarios.debe_cambiar_password`, emails únicos por `lower(email)`) y `0004_servientrega_api` (guía de Servientrega en `envios` y `servientrega_rotulos`). Los `scripts/0xx-*.sql` son historial previo. Los scripts destructivos están en `scripts/dangerous/`.
 - Bases:
   - `mdlt-prod`: Production.
   - `mdlt-preview`: Preview y Development. Tiene el marcador `_entorno = 'preview'` que exigen los scripts de seed.
 - El esquema está documentado en `docs/database-schema.md`.
 - Los códigos de pedido (`TUTU-YYYY-####`) salen de una secuencia de Postgres por año, que es atómica.
+
+## Integración Servientrega
+
+Generación de guías con la API de Servientrega (Servicli). Referencia de la API y formatos reales: [`docs/servientrega-api.md`](docs/servientrega-api.md).
+
+- **Flujo**: en la tarjeta de envío del pedido y en la lista de Envíos, el botón manual "Generar guía Servientrega" abre un diálogo con la ciudad de destino (combobox sobre las ciudades de Servientrega, preseleccionada con una sugerencia a partir de `pedidos.ciudad_envio` o la dirección del cliente), el destinatario precargado y editable, peso (0.5 kg), piezas (1), contenido, valor de la mercancía (subtotal de productos) y producto (2, Mercancía Premier). Con la guía generada se muestran su número, "Descargar guía (PDF)", "Rótulo" y "Anular guía". El registro manual de una guía hecha en el portal sigue disponible.
+- **Capas**: `server/integraciones/servientrega/` (config con Zod, transporte HTTPS, mapper y cliente), `server/services/servientrega.ts` (reglas, permisos y auditoría), Server Actions en `app/(admin)/admin/envios/actions.ts`, descarga de PDF en `app/api/envios/[id]/guia-servientrega` (`?tipo=a4|rotulo`) y componentes en `components/admin/envios/`. Las constantes y funciones puras compartidas con el cliente están en `lib/servientrega.ts`.
+- **Configuración**: `SERVIENTREGA_AMBIENTE` (`qa`/`prod`), credenciales y datos del remitente (ver `README.md`). Sin `SERVIENTREGA_AMBIENTE` la integración queda deshabilitada: los botones aparecen deshabilitados con el mensaje "Integración con Servientrega no configurada" y el resto de la app funciona igual. Si faltan datos del remitente, solo falla la generación, con un mensaje que lista las variables.
+- **Datos**: la guía real va en `envios.guia_servientrega` (UNIQUE parcial), con `servientrega_estado` (`generando`/`generada`/`anulada`) y los datos usados. La guía interna `envios.guia` (`SER-YYYY-######`) no cambia. El rótulo se guarda en `servientrega_rotulos` la primera vez, porque Servientrega lo entrega una sola vez.
+- **Una guía por envío**: una transacción corta con `SELECT … FOR UPDATE` marca el envío como `generando`; la llamada a la API va fuera de la transacción (hasta 20 s de red sin un bloqueo ni una conexión abiertos) y luego un `UPDATE` condicionado a `generando` guarda el número. Una petición simultánea encuentra la marca y recibe 409; si la API falla, se restaura el estado anterior, y una marca de más de 2 minutos se considera abandonada. Si la API responde OK pero falla el `UPDATE`, el número de guía queda en el log (`logger.error`) y en el mensaje al admin. Un timeout al generar es ambiguo (la guía pudo crearse igual): el mensaje pide revisar el portal (referencia "Pedido TUTU-…") antes de reintentar.
+- **Seguridad**: las URLs de la API llevan usuario y contraseña en la ruta, así que nunca se loguean; todo texto que va al log pasa por `redactar()`. En QA, que se publica por IP, el certificado se valida contra `servientrega.com.ec` (SNI + `checkServerIdentity`), sin desactivar TLS. Timeout de 20 s y un reintento solo en GET. Permisos: módulo `envios` con `update` para generar y anular, y `read` para descargar. Generar y anular quedan en la auditoría.
+- **Ciudades**: cache en memoria de 24 h por instancia (sin `cacheComponents`, `"use cache"` no está disponible).
+- **QA**: la anulación respondió siempre "LA GUÍA NO PUEDE SER ANULADA, PORQUE ESTA SIENDO PROCESADA", con la guía impresa o sin imprimir. El sistema muestra ese mensaje al admin y la guía sigue vigente.
+
+### IP fija y Vercel Hobby
+
+Producción de Servientrega (`swservicli.servientrega.com.ec`) solo atiende IPs públicas registradas. Las funciones de Vercel salen por IPs dinámicas y compartidas, y el plan Hobby no ofrece IP fija, así que **producción no se activa por ahora** (`SERVIENTREGA_AMBIENTE` sin configurar en Production). El código ya soporta `prod`. Opciones:
+
+1. **Proxy con IP fija**: un servidor pequeño (un VPS o un servicio de proxy de salida con IP estática) que reenvíe las llamadas a Servientrega; se registra su IP. Hay que autenticar el proxy y mantenerlo, y suma un salto de red.
+2. **Pedir una excepción a Servientrega**: que habiliten el acceso sin IP fija o por otro mecanismo (token, rango de IPs). Depende de su política.
+3. **Vercel Pro con Static IPs**: IPs de salida fijas para las funciones del proyecto, que se registran en Servientrega. No requiere infraestructura extra, pero tiene el costo del plan Pro y del add-on.
 
 ## Despliegue
 
