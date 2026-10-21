@@ -44,7 +44,7 @@ export function EstadoGuiaServientrega({
     <div className="space-y-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span>
-          <span className="font-medium">Estado Servientrega:</span> {estadoActual ?? "Sin consultar"}
+          <span className="font-medium">Estado Servientrega:</span> {estadoActual ?? (consultadoAt ? "Sin datos en Servientrega" : "Sin consultar")}
           {consultadoAt && (
             <span className="text-xs text-muted-foreground"> (consultado {formatDateTime(consultadoAt)})</span>
           )}

@@ -440,7 +440,11 @@ describe("actualizarEstadoGuia (trazabilidad)", () => {
 
 describe("portal: guía para el rastreo público", () => {
   test("listarPedidosDeCliente trae la guía vigente; una anulada no", async () => {
+    // Otro pedido antes, para que el id del envío no coincida con el del pedido.
+    await crearPedido((await crearCliente()).id)
+    await crearPedido((await crearCliente()).id)
     const envio = await nuevoEnvio()
+    expect(envio.id).not.toBe(envio.pedido_id)
     const [pedido] = await db.select().from(pedidos).where(eq(pedidos.id, envio.pedido_id))
     expect((await listarPedidosDeCliente(pedido.cliente_id))[0].guia_servientrega).toBeNull()
     await generarGuiaServientrega(admin, envio.id, datosGuia)

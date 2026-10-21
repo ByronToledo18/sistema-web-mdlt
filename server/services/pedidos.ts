@@ -111,10 +111,12 @@ export async function listarPedidosDeCliente(clienteId: number) {
       created_at: pedidos.created_at,
       updated_at: pedidos.updated_at,
       // Guía de Servientrega vigente más reciente del pedido, para el enlace
-      // público de rastreo del portal (el portal no llama a la API).
+      // público de rastreo del portal (el portal no llama a la API). La
+      // columna va calificada a mano: ${pedidos.id} sale como "id" sin tabla
+      // y dentro de la subconsulta se resolvería como e.id.
       guia_servientrega: sql<string | null>`(
         SELECT e.guia_servientrega FROM envios e
-        WHERE e.pedido_id = ${pedidos.id} AND e.servientrega_estado = 'generada'
+        WHERE e.pedido_id = "pedidos"."id" AND e.servientrega_estado = 'generada'
         ORDER BY e.guia_generada_at DESC NULLS LAST, e.id DESC
         LIMIT 1
       )`,
