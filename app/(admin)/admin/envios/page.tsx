@@ -4,12 +4,14 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PagoServientregaDialog } from "@/components/admin/envios/pago-servientrega-dialog"
+import { GuiaServientregaAcciones } from "@/components/admin/envios/guia-servientrega-acciones"
 import { RegistrarGuiaButton } from "@/components/admin/envios/registrar-guia-button"
 import { formatCurrency, formatDate, MESES } from "@/components/admin/format"
 import { Paginacion } from "@/components/admin/paginacion"
 import { PeriodoSelector } from "@/components/admin/periodo-selector"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
+import { estadoIntegracion } from "@/server/integraciones/servientrega"
 import { consolidacionServientrega, paginaDeEnvios } from "@/server/services/envios"
 import { numeroDePagina } from "@/server/validators/common"
 import { periodoQuery } from "@/server/validators/pagos"
@@ -45,6 +47,7 @@ export default async function EnviosPage({ searchParams }: { searchParams: Searc
   ])
   const canUpdateEnvio = can(user, "envios", "update")
   const canPayCuenta = can(user, "servientrega", "update")
+  const integracion = estadoIntegracion()
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -97,6 +100,17 @@ export default async function EnviosPage({ searchParams }: { searchParams: Searc
                           <p className="text-sm text-muted-foreground">
                             {envio.cliente_nombre} • {formatDate(envio.fecha_envio, "short")}
                           </p>
+                          <div className="mt-2">
+                            <GuiaServientregaAcciones
+                              envio={{
+                                id: envio.id,
+                                guia_servientrega: envio.guia_servientrega,
+                                servientrega_estado: envio.servientrega_estado,
+                              }}
+                              integracion={integracion}
+                              canUpdate={canUpdateEnvio}
+                            />
+                          </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-right">

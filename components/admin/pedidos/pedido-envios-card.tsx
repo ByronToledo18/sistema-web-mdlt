@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { eliminarEnvioAction } from "@/app/(admin)/admin/pedidos/actions"
+import {
+  GuiaServientregaAcciones,
+  type IntegracionServientrega,
+} from "@/components/admin/envios/guia-servientrega-acciones"
 import { formatCurrency, formatDateTime } from "@/components/admin/format"
 import type { EnvioPedido } from "./types"
 
@@ -22,7 +26,17 @@ const estadoEnvioLabels: Record<string, string> = {
   terminado: "Terminado",
 }
 
-export function PedidoEnviosCard({ envios, canDeleteEnvio }: { envios: EnvioPedido[]; canDeleteEnvio: boolean }) {
+export function PedidoEnviosCard({
+  envios,
+  canDeleteEnvio,
+  canUpdateEnvio,
+  integracion,
+}: {
+  envios: EnvioPedido[]
+  canDeleteEnvio: boolean
+  canUpdateEnvio: boolean
+  integracion: IntegracionServientrega
+}) {
   const [isPending, startTransition] = useTransition()
 
   const handleDeleteEnvio = (envioId: number) => {
@@ -64,6 +78,15 @@ export function PedidoEnviosCard({ envios, canDeleteEnvio }: { envios: EnvioPedi
                   <p className="text-sm">
                     <span className="font-medium">Costo:</span> {formatCurrency(envio.costo)}
                   </p>
+                  <GuiaServientregaAcciones
+                    envio={{
+                      id: envio.id,
+                      guia_servientrega: envio.guia_servientrega,
+                      servientrega_estado: envio.servientrega_estado,
+                    }}
+                    integracion={integracion}
+                    canUpdate={canUpdateEnvio}
+                  />
                   {envio.estado === "terminado" && (
                     <Alert>
                       <AlertDescription className="text-xs">
