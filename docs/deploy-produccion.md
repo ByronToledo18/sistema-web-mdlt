@@ -4,6 +4,9 @@ Procedimiento para publicar la rama `integracion` (Fases 0–6) con una base de
 datos de producción **nueva y vacía**. Los datos actuales de las bases son de
 prueba y no se migran.
 
+> Este documento es el deploy en **Vercel**. El servidor propio de Oracle Cloud
+> (Docker, IP fija para Servientrega) está en [`deploy-oracle.md`](deploy-oracle.md).
+
 ## Estado de partida
 
 | Recurso | Uso actual | Después del corte |
