@@ -13,6 +13,7 @@ erDiagram
     PRODUCTOS ||--o{ PEDIDO_ITEMS : "si item_tipo=producto"
     SERVICIOS ||--o{ PEDIDO_ITEMS : "si item_tipo=servicio"
     ENVIOS ||--o{ SERVIENTREGA_DETALLE : registra
+    ENVIOS ||--o{ SERVIENTREGA_ROTULOS : "rotulo PDF (migracion 0004)"
     SERVIENTREGA_CUENTA ||--o{ SERVIENTREGA_DETALLE : agrupa
     SERVIENTREGA_CUENTA ||--o{ SERVIENTREGA_PAGOS : recibe
     ROLES ||--o{ USUARIOS : asigna
@@ -111,10 +112,25 @@ erDiagram
     ENVIOS {
         int id PK
         int pedido_id FK
-        string guia
+        string guia "interna SER-YYYY-######"
         timestamp fecha_envio
         string estado "pendiente|en_proceso|terminado"
         numeric costo
+        string guia_servientrega UK "API Servientrega, unique si no es null"
+        string servientrega_estado "generando|generada|anulada"
+        int servientrega_ciudad_destino_id
+        int servientrega_producto_id
+        numeric peso_kg
+        int piezas
+        string contenido
+        timestamp guia_generada_at
+        timestamp guia_anulada_at
+    }
+
+    SERVIENTREGA_ROTULOS {
+        string guia_servientrega PK
+        int envio_id FK
+        text pdf_base64 "la API entrega el rotulo una sola vez"
     }
 
     SERVIENTREGA_CUENTA {

@@ -38,6 +38,9 @@ const updatedAt = () => ts("updated_at").default(sql`CURRENT_TIMESTAMP`)
 
 export const PEDIDO_ESTADOS = ["recibido", "en_proceso", "terminado", "anulado", "entregado"] as const
 export const ENVIO_ESTADOS = ["pendiente", "en_proceso", "terminado"] as const
+// Estado de la guía generada por la API de Servientrega. 'generando' es la
+// marca temporal mientras se llama a la API (ver server/services/servientrega.ts).
+export const SERVIENTREGA_ESTADOS = ["generando", "generada", "anulada"] as const
 export const ITEM_TIPOS = ["producto", "servicio"] as const
 export const NOMINA_TIPOS = ["pago", "deduccion", "bono"] as const
 
@@ -362,6 +365,17 @@ export const envios = pgTable(
     costo: money("costo"),
     created_at: createdAt(),
     updated_at: updatedAt(),
+    // Guía real generada con la API de Servientrega (la `guia` de arriba es la
+    // interna SER-YYYY-######). Ver server/services/servientrega.ts.
+    guia_servientrega: varchar("guia_servientrega", { length: 30 }),
+    servientrega_estado: varchar("servientrega_estado", { length: 20, enum: SERVIENTREGA_ESTADOS }),
+    servientrega_ciudad_destino_id: integer("servientrega_ciudad_destino_id"),
+    servientrega_producto_id: integer("servientrega_producto_id"),
+    peso_kg: numeric("peso_kg", { precision: 8, scale: 2 }),
+    piezas: integer("piezas"),
+    contenido: varchar("contenido", { length: 200 }),
+    guia_generada_at: ts("guia_generada_at"),
+    guia_anulada_at: ts("guia_anulada_at"),
   },
   (t) => [
     index("idx_envios_pedido").on(t.pedido_id),
@@ -369,6 +383,33 @@ export const envios = pgTable(
     check(
       "envios_estado_check",
       sql`(estado)::text = ANY ((ARRAY['pendiente'::character varying, 'en_proceso'::character varying, 'terminado'::character varying])::text[])`,
+    ),
+    uniqueIndex("envios_guia_servientrega_key")
+      .on(t.guia_servientrega)
+      .where(sql`(guia_servientrega IS NOT NULL)`),
+    check(
+      "envios_servientrega_estado_check",
+      sql`(servientrega_estado IS NULL OR servientrega_estado IN ('generando', 'generada', 'anulada'))`,
+    ),
+  ],
+)
+
+// Rótulo PDF de cada guía de Servientrega. La API entrega el rótulo UNA sola
+// vez (las siguientes responden "YA SE ENCUENTRA IMPRESA POR RÓTULO" sin
+// archivo), así que se guarda la primera descarga. Tabla aparte para que los
+// listados de envíos no arrastren el PDF.
+export const servientregaRotulos = pgTable(
+  "servientrega_rotulos",
+  {
+    guia_servientrega: varchar("guia_servientrega", { length: 30 }).primaryKey(),
+    envio_id: integer("envio_id").notNull(),
+    pdf_base64: text("pdf_base64").notNull(),
+    created_at: createdAt(),
+  },
+  (t) => [
+    index("idx_servientrega_rotulos_envio").on(t.envio_id),
+    foreignKey({ columns: [t.envio_id], foreignColumns: [envios.id], name: "servientrega_rotulos_envio_id_fkey" }).onDelete(
+      "cascade",
     ),
   ],
 )
