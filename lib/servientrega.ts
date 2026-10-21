@@ -88,3 +88,8 @@ export function dividirNombre(nombreCompleto: string): { nombre: string; apellid
   const corte = partes.length >= 4 ? 2 : 1
   return { nombre: partes.slice(0, corte).join(" "), apellido: partes.slice(corte).join(" ") }
 }
+
+// Rastreo público de Servientrega (no usa la API ni credenciales).
+export function urlRastreoPublico(numeroGuia: string): string {
+  return `https://www.servientrega.com.ec/Tracking/?guia=${encodeURIComponent(numeroGuia)}&tipo=GUIA`
+}

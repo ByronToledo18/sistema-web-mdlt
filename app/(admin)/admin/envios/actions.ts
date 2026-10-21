@@ -7,6 +7,7 @@ import { actualizarEnvio, pagarServientrega } from "@/server/services/envios"
 import { id, requiredText } from "@/server/validators/common"
 import { pagarServientregaBody } from "@/server/validators/pagos"
 import {
+  actualizarEstadoGuia,
   anularGuiaServientrega,
   formularioGuiaServientrega,
   generarGuiaServientrega,
@@ -71,6 +72,18 @@ export async function anularGuiaServientregaAction(input: unknown) {
       const envio = await anularGuiaServientrega(user, envioIdBody.parse(input).envio_id)
       if (envio) revalidarEnvio(envio.pedido_id)
       else revalidatePath("/admin/envios")
+    },
+  )
+}
+
+// Trazabilidad (servicio SOAP): estado actual y movimientos de la guía.
+export async function actualizarEstadoGuiaAction(input: unknown) {
+  return adminAction(
+    { permission: { module: "envios", action: "read" }, error: "Error al consultar el estado en Servientrega" },
+    async (user) => {
+      const resultado = await actualizarEstadoGuia(user, envioIdBody.parse(input).envio_id)
+      revalidarEnvio(resultado.pedido_id)
+      return resultado
     },
   )
 }

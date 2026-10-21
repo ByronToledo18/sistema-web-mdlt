@@ -83,6 +83,8 @@ export function PedidoEnviosCard({
                       id: envio.id,
                       guia_servientrega: envio.guia_servientrega,
                       servientrega_estado: envio.servientrega_estado,
+                      servientrega_estado_actual: envio.servientrega_estado_actual,
+                      servientrega_consultado_at: envio.servientrega_consultado_at,
                     }}
                     integracion={integracion}
                     canUpdate={canUpdateEnvio}

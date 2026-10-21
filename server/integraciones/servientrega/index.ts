@@ -6,3 +6,4 @@ export { crearClienteServientrega, type ClienteServientrega, type GuiaGenerada }
 export { estadoIntegracion, leerConfig, leerRemitente, type EstadoIntegracion, type Remitente } from "./config"
 export { ServientregaError, type TipoErrorServientrega } from "./errores"
 export type { GuiaInput } from "./guia"
+export { consultarTrazabilidad, type MovimientoGuia, type TrazabilidadGuia } from "./trazabilidad"

@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { descargarArchivo } from "@/components/admin/descargar-archivo"
 import { anularGuiaServientregaAction } from "@/app/(admin)/admin/envios/actions"
+import { EstadoGuiaServientrega } from "./estado-guia-servientrega"
 import { GenerarGuiaServientregaDialog } from "./generar-guia-servientrega-dialog"
 
 export interface EnvioServientrega {
   id: number
   guia_servientrega: string | null
   servientrega_estado: string | null
+  servientrega_estado_actual: string | null
+  servientrega_consultado_at: Date | string | null
 }
 
 export interface IntegracionServientrega {
@@ -84,6 +87,13 @@ export function GuiaServientregaAcciones({
           )}
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
+        <EstadoGuiaServientrega
+          envioId={envio.id}
+          numero={numero!}
+          estadoActual={envio.servientrega_estado_actual}
+          consultadoAt={envio.servientrega_consultado_at}
+          habilitada={integracion.habilitada}
+        />
       </div>
     )
   }

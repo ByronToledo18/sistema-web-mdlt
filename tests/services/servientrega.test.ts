@@ -5,8 +5,9 @@ import { db } from "@/server/db/client"
 import { auditoria, envios, pedidoItems, pedidos, roles, servientregaRotulos, usuarios } from "@/server/db/schema"
 import { ServientregaError } from "@/server/integraciones/servientrega/errores"
 import { crearEnvio, eliminarEnvio } from "@/server/services/envios"
-import { crearPedido } from "@/server/services/pedidos"
+import { crearPedido, listarPedidosDeCliente } from "@/server/services/pedidos"
 import {
+  actualizarEstadoGuia,
   anularGuiaServientrega,
   descargarGuia,
   formularioGuiaServientrega,
@@ -24,6 +25,7 @@ const api = vi.hoisted(() => ({
   anularGuia: vi.fn(),
   obtenerPdfGuia: vi.fn(),
   obtenerRotulo: vi.fn(),
+  consultarTrazabilidad: vi.fn(),
 }))
 
 vi.mock("@/server/integraciones/servientrega/cliente", () => ({
@@ -374,5 +376,76 @@ describe("eliminarEnvio", () => {
     await anularGuiaServientrega(admin, envio.id)
     await descargarGuia(envio.id, "a4").catch(() => {})
     await expect(eliminarEnvio(envio.id)).resolves.toBeUndefined()
+  })
+})
+
+describe("actualizarEstadoGuia (trazabilidad)", () => {
+  const traz = (datos: Record<string, unknown> = {}) => ({
+    numeroGuia: "709533700",
+    estadoActual: "En Distribución a Cliente",
+    idEstado: 4,
+    fechaEstado: "2026-10-21",
+    fechaProbable: "2026-10-22",
+    fechaEnvio: "2026-10-20",
+    ciudadOrigen: "GUAYAQUIL -GUAYAS",
+    ciudadDestino: "QUITO -PICHINCHA",
+    receptor: null,
+    movimientos: [{ nombre: "Generado", origen: "GUAYAQUIL", descripcion: "Generado", fecha: "2026-10-20 10:00" }],
+    mensajeImagen: null,
+    sinDatos: false,
+    ...datos,
+  })
+
+  test("guarda el estado actual y la fecha de consulta; devuelve movimientos y el enlace público", async () => {
+    const envio = await nuevoEnvio()
+    await generarGuiaServientrega(admin, envio.id, datosGuia)
+    api.consultarTrazabilidad.mockResolvedValueOnce(traz())
+
+    const r = await actualizarEstadoGuia(asistente, envio.id)
+    expect(api.consultarTrazabilidad).toHaveBeenCalledWith("709533700")
+    expect(r).toMatchObject({
+      estado_actual: "En Distribución a Cliente",
+      url_rastreo: "https://www.servientrega.com.ec/Tracking/?guia=709533700&tipo=GUIA",
+      trazabilidad: { movimientos: [{ nombre: "Generado" }] },
+    })
+    const enBd = await envioEnBd(envio.id)
+    expect(enBd.servientrega_estado_actual).toBe("En Distribución a Cliente")
+    expect(enBd.servientrega_consultado_at).toBeInstanceOf(Date)
+  })
+
+  test("sin datos en Servientrega: conserva el último estado conocido", async () => {
+    const envio = await nuevoEnvio()
+    await generarGuiaServientrega(admin, envio.id, datosGuia)
+    api.consultarTrazabilidad.mockResolvedValueOnce(traz())
+    await actualizarEstadoGuia(admin, envio.id)
+    api.consultarTrazabilidad.mockResolvedValueOnce(traz({ estadoActual: null, movimientos: [], sinDatos: true }))
+    const r = await actualizarEstadoGuia(admin, envio.id)
+    expect(r.trazabilidad.sinDatos).toBe(true)
+    expect(r.estado_actual).toBe("En Distribución a Cliente")
+  })
+
+  test("error del servicio → 424 con el mensaje; sin guía → 409; soporte → 403", async () => {
+    const envio = await nuevoEnvio()
+    await expect(actualizarEstadoGuia(admin, envio.id)).rejects.toMatchObject({ status: 409 })
+    await generarGuiaServientrega(admin, envio.id, datosGuia)
+    api.consultarTrazabilidad.mockRejectedValueOnce(new ServientregaError("rechazada", "Trazabilidad: Servicio caído"))
+    await expect(actualizarEstadoGuia(admin, envio.id)).rejects.toMatchObject({
+      status: 424,
+      message: "Servientrega: Trazabilidad: Servicio caído",
+    })
+    await expect(actualizarEstadoGuia(soporte, envio.id)).rejects.toMatchObject({ status: 403 })
+    expect((await envioEnBd(envio.id)).servientrega_consultado_at).toBeNull()
+  })
+})
+
+describe("portal: guía para el rastreo público", () => {
+  test("listarPedidosDeCliente trae la guía vigente; una anulada no", async () => {
+    const envio = await nuevoEnvio()
+    const [pedido] = await db.select().from(pedidos).where(eq(pedidos.id, envio.pedido_id))
+    expect((await listarPedidosDeCliente(pedido.cliente_id))[0].guia_servientrega).toBeNull()
+    await generarGuiaServientrega(admin, envio.id, datosGuia)
+    expect((await listarPedidosDeCliente(pedido.cliente_id))[0].guia_servientrega).toBe("709533700")
+    await anularGuiaServientrega(admin, envio.id)
+    expect((await listarPedidosDeCliente(pedido.cliente_id))[0].guia_servientrega).toBeNull()
   })
 })

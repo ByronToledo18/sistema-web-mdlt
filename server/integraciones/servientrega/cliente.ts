@@ -6,6 +6,7 @@ import { leerConfig, type ConfigServientrega } from "./config"
 import { ServientregaError } from "./errores"
 import { mapearGuia, type GuiaInput } from "./guia"
 import { enviar, redactar, type Peticion, type Respuesta } from "./http"
+import { consultarTrazabilidad, type TrazabilidadGuia } from "./trazabilidad"
 
 // Cliente de la API de Servientrega (Servicli). Formatos reales observados en
 // QA (ver docs/servientrega-api.md):
@@ -84,6 +85,8 @@ export interface ClienteServientrega {
   anularGuia(numero: string): Promise<{ mensaje: string }>
   obtenerPdfGuia(numero: string): Promise<Buffer>
   obtenerRotulo(numero: string): Promise<Buffer>
+  // Servicio SOAP aparte (ver trazabilidad.ts).
+  consultarTrazabilidad(numero: string): Promise<TrazabilidadGuia>
 }
 
 // Base64 → PDF. Acepta también un string JSON entre comillas por si el
@@ -225,6 +228,10 @@ export function crearClienteServientrega(config: ConfigServientrega = leerConfig
         operacion: "rotulo",
       })
       return decodificarPdf(datos, "rotulo")
+    },
+
+    consultarTrazabilidad(numero) {
+      return consultarTrazabilidad(config, numero)
     },
   }
 }

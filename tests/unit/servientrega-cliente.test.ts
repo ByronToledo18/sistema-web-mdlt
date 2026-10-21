@@ -12,7 +12,7 @@ interface PeticionCapturada {
   url: URL
   opciones: Record<string, unknown> & { method?: string; servername?: string; checkServerIdentity?: unknown }
   cuerpo: string
-  responder: (status: number, cuerpo: string) => void
+  responder: (status: number, cuerpo: string | Buffer, contentType?: string) => void
   fallar: (error: Error & { code?: string }) => void
 }
 
@@ -41,12 +41,18 @@ vi.mock("node:https", async () => {
         url,
         opciones,
         cuerpo,
-        responder: (status, texto) => {
-          const res = new EventEmitter() as EventEmitter & { statusCode: number; setEncoding: (e: string) => void }
+        responder: (status, texto, contentType = "application/json; charset=utf-8") => {
+          const res = new EventEmitter() as EventEmitter & {
+            statusCode: number
+            headers: Record<string, string>
+            setEncoding: (e: string) => void
+          }
           res.statusCode = status
+          res.headers = { "content-type": contentType }
           res.setEncoding = () => {}
           onResponse(res)
-          res.emit("data", texto)
+          // Como un socket con setEncoding("latin1"): un carácter por byte.
+          res.emit("data", (typeof texto === "string" ? Buffer.from(texto, "utf8") : texto).toString("latin1"))
           res.emit("end")
         },
         fallar: (error) => req.emit("error", error),
@@ -333,5 +339,78 @@ describe("redacción en logs", () => {
     const r = redactar(texto, configQa)
     sinSecretos(r)
     expect(r).toContain("[REDACTADO]")
+  })
+})
+
+describe("consultarTrazabilidad (SOAP)", () => {
+  const respuestaSoap = (interior: string) =>
+    `<?xml version="1.0" encoding="ISO-8859-1"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">` +
+    `<SOAP-ENV:Body><ns1:ConsultarGuiaImagenResponse><Result>${interior}</Result></ns1:ConsultarGuiaImagenResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>`
+
+  test("POST del sobre al endpoint del ambiente, con SOAPAction y validación TLS normal", async () => {
+    // ISO-8859-1 real: "Distribución" con ó = 0xF3.
+    const xml = respuestaSoap(
+      "<![CDATA[<ConsultarGuiaImagenResult><NumGui>709533700</NumGui><FecEnv>2026-10-20</FecEnv><EstAct>En Distribución</EstAct><Mov></Mov></ConsultarGuiaImagenResult>]]>",
+    )
+    estado.responder = (p) => p.responder(200, Buffer.from(xml, "latin1"), "text/xml; charset=ISO-8859-1")
+    const r = await crearClienteServientrega(configQa).consultarTrazabilidad("709533700")
+    expect(r).toMatchObject({ numeroGuia: "709533700", estadoActual: "En Distribución", sinDatos: false })
+
+    const { url, opciones, cuerpo } = capturadas[0]
+    expect(url.toString()).toBe("https://servientrega-ecuador-prueba.appsiscore.com/app/ws/server_trazabilidad.php")
+    expect(opciones.method).toBe("POST")
+    expect(opciones.headers).toMatchObject({
+      "Content-Type": "text/xml; charset=utf-8",
+      SOAPAction: '"https://servientrega-ecuador-prueba.appsiscore.com/app/ws/server_trazabilidad.php/ConsultarGuiaImagen"',
+    })
+    expect(opciones).not.toHaveProperty("servername")
+    expect(opciones).not.toHaveProperty("rejectUnauthorized")
+    expect(cuerpo).toContain('<guia xsi:type="xsd:string">709533700</guia>')
+  })
+
+  test("SERVIENTREGA_TRAZABILIDAD_URL reemplaza el endpoint (se quita ?wsdl); prod usa el suyo", () => {
+    const conUrl = leerConfig({
+      SERVIENTREGA_AMBIENTE: "qa",
+      SERVIENTREGA_USUARIO: USUARIO,
+      SERVIENTREGA_PASSWORD: PASSWORD,
+      SERVIENTREGA_TRAZABILIDAD_URL: "https://otro.appsiscore.com/app/ws/server_trazabilidad.php?wsdl",
+    })
+    expect(conUrl.endpoints.trazabilidad).toBe("https://otro.appsiscore.com/app/ws/server_trazabilidad.php")
+    expect(configProd.endpoints.trazabilidad).toBe("https://servientrega-ecuador.appsiscore.com/app/ws/server_trazabilidad.php")
+    expect(() =>
+      leerConfig({ ...{ SERVIENTREGA_AMBIENTE: "qa", SERVIENTREGA_USUARIO: "u", SERVIENTREGA_PASSWORD: "p" }, SERVIENTREGA_TRAZABILIDAD_URL: "http://x" }),
+    ).toThrow(/https/)
+  })
+
+  test("guía sin datos → sinDatos", async () => {
+    estado.responder = (p) =>
+      p.responder(200, respuestaSoap("&lt;ConsultarGuiaImagenResult&gt;&lt;IdEstAct&gt;3&lt;/IdEstAct&gt;&lt;EstAct&gt;&lt;/EstAct&gt;&lt;Mov&gt;&lt;/Mov&gt;&lt;/ConsultarGuiaImagenResult&gt;"), "text/xml")
+    await expect(crearClienteServientrega(configQa).consultarTrazabilidad("1")).resolves.toMatchObject({ sinDatos: true })
+  })
+
+  test("HTTP 500 con SOAP Fault → rechazada; 503 sin fault → http (se reintenta una vez)", async () => {
+    estado.responder = (p) =>
+      p.responder(500, "<Envelope><Body><Fault><faultstring>Servicio caído</faultstring></Fault></Body></Envelope>", "text/xml")
+    await expect(crearClienteServientrega(configQa).consultarTrazabilidad("1")).rejects.toMatchObject({
+      tipo: "rechazada",
+      message: "Trazabilidad: Servicio caído",
+    })
+    capturadas.length = 0
+    estado.responder = (p) => p.responder(503, "", "text/html")
+    await expect(crearClienteServientrega(configQa).consultarTrazabilidad("1")).rejects.toMatchObject({ tipo: "http", status: 503 })
+    expect(capturadas).toHaveLength(2)
+  })
+
+  test("número de guía inválido: no hace la petición", async () => {
+    await expect(crearClienteServientrega(configQa).consultarTrazabilidad("abc")).rejects.toMatchObject({ tipo: "rechazada" })
+    expect(capturadas).toHaveLength(0)
+  })
+
+  test("timeout", async () => {
+    vi.useFakeTimers()
+    estado.responder = () => {}
+    const resultado = capturar(crearClienteServientrega(configQa).consultarTrazabilidad("1"))
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS * 2 + 1_000)
+    expect(await resultado).toMatchObject({ tipo: "timeout" })
   })
 })

@@ -4,7 +4,7 @@ import { and, eq, sql, sum } from "drizzle-orm"
 import type { UserPayload } from "@/lib/auth"
 import { HttpError } from "@/lib/http"
 import { logger } from "@/lib/logger"
-import { dividirNombre, GUIA_DEFAULTS, sugerirCiudad, type CiudadServientrega } from "@/lib/servientrega"
+import { dividirNombre, GUIA_DEFAULTS, sugerirCiudad, urlRastreoPublico, type CiudadServientrega } from "@/lib/servientrega"
 import { assertCan } from "@/server/auth/guard"
 import { db, withTx } from "@/server/db/client"
 import { clientes, envios, pedidoItems, pedidos, servientregaRotulos } from "@/server/db/schema"
@@ -369,4 +369,43 @@ export async function descargarGuia(envioId: number, tipo: TipoDocumentoGuia): P
     logger.error(`${CONTEXTO}: no se pudo guardar el rótulo`, error, { envio_id: envioId, guia_servientrega: numero })
   }
   return { numero, pdf }
+}
+
+// Consulta la trazabilidad (servicio SOAP) y guarda el estado actual y la
+// fecha de la consulta en el envío. Es una lectura para el usuario: basta
+// con envíos: read. Si Servientrega no tiene datos todavía, se conserva el
+// último estado conocido.
+export async function actualizarEstadoGuia(user: UserPayload, envioId: number) {
+  assertCan(user, "envios", "read")
+  const api = cliente()
+  const [envio] = await db
+    .select({ guia_servientrega: envios.guia_servientrega, pedido_id: envios.pedido_id })
+    .from(envios)
+    .where(eq(envios.id, envioId))
+  if (!envio) throw new HttpError(404, "Envío no encontrado")
+  if (!envio.guia_servientrega) throw new HttpError(409, "El envío no tiene una guía de Servientrega")
+  const numero = envio.guia_servientrega
+
+  const trazabilidad = await conServientrega(() => api.consultarTrazabilidad(numero))
+
+  const [actualizado] = await db
+    .update(envios)
+    .set({
+      ...(trazabilidad.estadoActual ? { servientrega_estado_actual: trazabilidad.estadoActual.slice(0, 150) } : {}),
+      servientrega_consultado_at: sql`CURRENT_TIMESTAMP`,
+    })
+    .where(and(eq(envios.id, envioId), eq(envios.guia_servientrega, numero)))
+    .returning({
+      pedido_id: envios.pedido_id,
+      servientrega_estado_actual: envios.servientrega_estado_actual,
+      servientrega_consultado_at: envios.servientrega_consultado_at,
+    })
+
+  return {
+    pedido_id: envio.pedido_id,
+    estado_actual: actualizado?.servientrega_estado_actual ?? null,
+    consultado_at: actualizado?.servientrega_consultado_at ?? null,
+    trazabilidad,
+    url_rastreo: urlRastreoPublico(numero),
+  }
 }

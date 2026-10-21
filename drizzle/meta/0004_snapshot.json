@@ -1,5 +1,5 @@
 {
-  "id": "168959b1-d513-4275-9f07-6a36ba0a72d6",
+  "id": "9feac228-7d7f-4f2f-a98e-4bf6ce5de35f",
   "prevId": "ed31ef3d-d0b6-42ec-9aa6-da87e9cd1d1c",
   "version": "7",
   "dialect": "postgresql",
@@ -548,6 +548,18 @@
         },
         "guia_anulada_at": {
           "name": "guia_anulada_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "servientrega_estado_actual": {
+          "name": "servientrega_estado_actual",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "servientrega_consultado_at": {
+          "name": "servientrega_consultado_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false

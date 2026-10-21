@@ -3,7 +3,8 @@ import type { LucideIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Package, Clock, CheckCircle, XCircle, Truck, ArrowLeft } from "lucide-react"
+import { Package, Clock, CheckCircle, XCircle, Truck, ArrowLeft, ExternalLink } from "lucide-react"
+import { urlRastreoPublico } from "@/lib/servientrega"
 import { requireCliente } from "@/server/auth/session"
 import { listarPedidosDeCliente } from "@/server/services/pedidos"
 
@@ -19,6 +20,23 @@ const estadoConfig: Record<string, { label: string; color: string; icon: LucideI
 // la tienda para que coincida con lo que mostraba el navegador.
 function fecha(valor: Date | null) {
   return valor ? valor.toLocaleDateString("es-EC", { timeZone: "America/Guayaquil" }) : ""
+}
+
+// Enlace al rastreo público de Servientrega (no consulta la API).
+function RastrearEnvio({ guia }: { guia: string | null }) {
+  if (!guia) return null
+  return (
+    <a
+      href={urlRastreoPublico(guia)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+    >
+      <Truck className="h-4 w-4" />
+      Rastrear envío (guía {guia})
+      <ExternalLink className="h-3 w-3" />
+    </a>
+  )
 }
 
 // Server Component: la sesión y los pedidos se leen en el servidor, sin
@@ -83,6 +101,7 @@ export default async function ClientePedidosPage() {
                           <p className="font-medium text-primary text-lg">${Number(pedido.total).toFixed(2)}</p>
                         </div>
                       </div>
+                      <RastrearEnvio guia={pedido.guia_servientrega} />
                     </CardContent>
                   </Card>
                 )
@@ -130,6 +149,7 @@ export default async function ClientePedidosPage() {
                           <p className="font-medium text-foreground">${Number(pedido.total).toFixed(2)}</p>
                         </div>
                       </div>
+                      <RastrearEnvio guia={pedido.guia_servientrega} />
                     </CardContent>
                   </Card>
                 )

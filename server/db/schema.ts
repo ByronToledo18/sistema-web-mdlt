@@ -376,6 +376,9 @@ export const envios = pgTable(
     contenido: varchar("contenido", { length: 200 }),
     guia_generada_at: ts("guia_generada_at"),
     guia_anulada_at: ts("guia_anulada_at"),
+    // Última consulta de trazabilidad (servicio SOAP ConsultarGuiaImagen).
+    servientrega_estado_actual: varchar("servientrega_estado_actual", { length: 150 }),
+    servientrega_consultado_at: ts("servientrega_consultado_at"),
   },
   (t) => [
     index("idx_envios_pedido").on(t.pedido_id),

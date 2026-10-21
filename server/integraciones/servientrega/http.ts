@@ -76,11 +76,31 @@ function construirUrl(config: ConfigServientrega, peticion: Peticion): URL {
   return new URL(`${base}${peticion.ruta}${sufijo}`)
 }
 
-function unIntento(config: ConfigServientrega, peticion: Peticion): Promise<Respuesta> {
-  const url = construirUrl(config, peticion)
-  const cuerpo = peticion.cuerpo === undefined ? undefined : JSON.stringify(peticion.cuerpo)
+// Petición HTTPS genérica: la usan la API JSON de Servicli (enviar) y el
+// servicio SOAP de trazabilidad (trazabilidad.ts).
+export interface SolicitudHttps {
+  url: URL
+  metodo: Metodo
+  headers: Record<string, string | number>
+  cuerpo?: string
+  tls: Pick<https.RequestOptions, "servername" | "checkServerIdentity">
+  // Nombre corto de la operación para los logs.
+  operacion: string
+  // Solo operaciones de lectura (GET o consultas SOAP).
+  reintentable: boolean
+  // Quita secretos de cualquier texto que vaya al log o a un error.
+  redactar: (texto: string) => string
+}
 
-  return new Promise<Respuesta>((resolve, reject) => {
+export interface RespuestaCruda {
+  status: number
+  contentType: string
+  // Bytes tal cual: cada llamador decodifica según su charset.
+  cuerpo: Buffer
+}
+
+function unIntento(s: SolicitudHttps): Promise<RespuestaCruda> {
+  return new Promise<RespuestaCruda>((resolve, reject) => {
     let terminado = false
     const fallar = (error: ServientregaError) => {
       if (terminado) return
@@ -90,20 +110,18 @@ function unIntento(config: ConfigServientrega, peticion: Peticion): Promise<Resp
     }
 
     const req = https.request(
-      url,
+      s.url,
       {
-        method: peticion.metodo,
+        method: s.metodo,
         headers: {
-          Accept: "application/json",
-          ...(cuerpo !== undefined
-            ? { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(cuerpo) }
-            : {}),
+          ...s.headers,
+          ...(s.cuerpo !== undefined ? { "Content-Length": Buffer.byteLength(s.cuerpo) } : {}),
         },
-        ...opcionesTls(config),
+        ...s.tls,
       },
       (res) => {
-        // setEncoding decodifica UTF-8 sin partir caracteres entre chunks.
-        res.setEncoding("utf8")
+        // latin1 conserva cada byte como un carácter: se rearma el Buffer al final.
+        res.setEncoding("latin1")
         const partes: string[] = []
         let bytes = 0
         res.on("data", (chunk: string) => {
@@ -119,9 +137,13 @@ function unIntento(config: ConfigServientrega, peticion: Peticion): Promise<Resp
           if (terminado) return
           terminado = true
           clearTimeout(timer)
-          resolve({ status: res.statusCode ?? 0, cuerpo: partes.join("") })
+          resolve({
+            status: res.statusCode ?? 0,
+            contentType: String(res.headers?.["content-type"] ?? ""),
+            cuerpo: Buffer.from(partes.join(""), "latin1"),
+          })
         })
-        res.on("error", (error) => fallar(errorDeRed(error, config)))
+        res.on("error", (error) => fallar(errorDeRed(error, s.redactar)))
       },
     )
 
@@ -131,16 +153,16 @@ function unIntento(config: ConfigServientrega, peticion: Peticion): Promise<Resp
       req.destroy()
     }, TIMEOUT_MS)
 
-    req.on("error", (error) => fallar(errorDeRed(error, config)))
-    if (cuerpo !== undefined) req.write(cuerpo)
+    req.on("error", (error) => fallar(errorDeRed(error, s.redactar)))
+    if (s.cuerpo !== undefined) req.write(s.cuerpo)
     req.end()
   })
 }
 
-function errorDeRed(error: unknown, config: ConfigServientrega): ServientregaError {
+function errorDeRed(error: unknown, redactarTexto: (t: string) => string): ServientregaError {
   const code = (error as { code?: unknown })?.code
   const detalle = typeof code === "string" ? code : error instanceof Error ? error.message : "error desconocido"
-  return new ServientregaError("red", `No se pudo conectar con Servientrega (${redactar(detalle, config)})`)
+  return new ServientregaError("red", `No se pudo conectar con Servientrega (${redactarTexto(detalle)})`)
 }
 
 function reintentable(error: unknown): boolean {
@@ -149,28 +171,47 @@ function reintentable(error: unknown): boolean {
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-// Envía la petición. Un 5xx en GET también se reintenta; el status de la
+// Un intento más en las lecturas (también ante un 5xx); el status de la
 // última respuesta se devuelve tal cual para que el llamador lo interprete.
-export async function enviar(config: ConfigServientrega, peticion: Peticion): Promise<Respuesta> {
-  const intentos = peticion.metodo === "GET" ? 2 : 1
+export async function solicitarHttps(s: SolicitudHttps): Promise<RespuestaCruda> {
+  const intentos = s.reintentable ? 2 : 1
   for (let intento = 1; ; intento++) {
     try {
-      const respuesta = await unIntento(config, peticion)
+      const respuesta = await unIntento(s)
       if (respuesta.status >= 500 && intento < intentos) {
-        logger.warn(CONTEXTO, `${peticion.operacion}: HTTP ${respuesta.status}, reintentando`, { intento })
+        logger.warn(CONTEXTO, `${s.operacion}: HTTP ${respuesta.status}, reintentando`, { intento })
         await pausa(PAUSA_REINTENTO_MS)
         continue
       }
       return respuesta
     } catch (error) {
-      const mensaje = error instanceof Error ? redactar(error.message, config) : "error desconocido"
+      const mensaje = error instanceof Error ? s.redactar(error.message) : "error desconocido"
       if (reintentable(error) && intento < intentos) {
-        logger.warn(CONTEXTO, `${peticion.operacion}: ${mensaje}, reintentando`, { intento })
+        logger.warn(CONTEXTO, `${s.operacion}: ${mensaje}, reintentando`, { intento })
         await pausa(PAUSA_REINTENTO_MS)
         continue
       }
-      logger.warn(CONTEXTO, `${peticion.operacion}: ${mensaje}`, { intento })
+      logger.warn(CONTEXTO, `${s.operacion}: ${mensaje}`, { intento })
       throw error
     }
   }
+}
+
+// API JSON de Servicli. GET se reintenta una vez; POST y DELETE nunca.
+export async function enviar(config: ConfigServientrega, peticion: Peticion): Promise<Respuesta> {
+  const cuerpo = peticion.cuerpo === undefined ? undefined : JSON.stringify(peticion.cuerpo)
+  const respuesta = await solicitarHttps({
+    url: construirUrl(config, peticion),
+    metodo: peticion.metodo,
+    headers: {
+      Accept: "application/json",
+      ...(cuerpo !== undefined ? { "Content-Type": "application/json; charset=utf-8" } : {}),
+    },
+    cuerpo,
+    tls: opcionesTls(config),
+    operacion: peticion.operacion,
+    reintentable: peticion.metodo === "GET",
+    redactar: (texto) => redactar(texto, config),
+  })
+  return { status: respuesta.status, cuerpo: respuesta.cuerpo.toString("utf8") }
 }

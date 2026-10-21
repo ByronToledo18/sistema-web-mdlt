@@ -105,11 +105,13 @@ describe("config", () => {
       api: "https://181.39.87.158:8021",
       documentos: "https://181.39.87.158:7777",
       tlsServername: "servientrega.com.ec",
+      trazabilidad: "https://servientrega-ecuador-prueba.appsiscore.com/app/ws/server_trazabilidad.php",
     })
     expect(leerConfig({ ...base, SERVIENTREGA_AMBIENTE: "PROD" }).endpoints).toEqual({
       api: "https://swservicli.servientrega.com.ec:5052",
       documentos: "https://swservicli.servientrega.com.ec:5001",
       tlsServername: null,
+      trazabilidad: "https://servientrega-ecuador.appsiscore.com/app/ws/server_trazabilidad.php",
     })
   })
 

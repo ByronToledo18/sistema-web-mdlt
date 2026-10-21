@@ -10,6 +10,8 @@ import { ServientregaError } from "./errores"
 //   (la UI muestra "Integración con Servientrega no configurada"); nunca rompe
 //   la app.
 // - SERVIENTREGA_USUARIO / SERVIENTREGA_PASSWORD: credenciales de Servicli.
+// - SERVIENTREGA_TRAZABILIDAD_URL (opcional): endpoint SOAP de trazabilidad;
+//   por defecto el del ambiente.
 // - SERVIENTREGA_REMITENTE_*: datos del remitente de las guías. Solo los exige
 //   la generación de guías; listar ciudades, anular y descargar funcionan sin ellos.
 //
@@ -27,6 +29,9 @@ interface Endpoints {
   // se valida contra ese nombre (SNI + checkServerIdentity), sin desactivar
   // la verificación TLS. En prod el host ya coincide con el certificado.
   tlsServername: string | null
+  // Servicio SOAP de trazabilidad (otro host, con certificado propio). Se
+  // puede reemplazar con SERVIENTREGA_TRAZABILIDAD_URL.
+  trazabilidad: string
 }
 
 export const ENDPOINTS: Record<AmbienteServientrega, Endpoints> = {
@@ -34,11 +39,13 @@ export const ENDPOINTS: Record<AmbienteServientrega, Endpoints> = {
     api: "https://181.39.87.158:8021",
     documentos: "https://181.39.87.158:7777",
     tlsServername: "servientrega.com.ec",
+    trazabilidad: "https://servientrega-ecuador-prueba.appsiscore.com/app/ws/server_trazabilidad.php",
   },
   prod: {
     api: "https://swservicli.servientrega.com.ec:5052",
     documentos: "https://swservicli.servientrega.com.ec:5001",
     tlsServername: null,
+    trazabilidad: "https://servientrega-ecuador.appsiscore.com/app/ws/server_trazabilidad.php",
   },
 }
 
@@ -51,10 +58,21 @@ const credencial = (nombre: string) =>
     .min(1, `Falta ${nombre}`)
     .refine((v) => !v.includes("'"), `${nombre} no puede contener comillas simples`)
 
+// Endpoint SOAP sin "?wsdl" (se acepta con él y se quita).
+const trazabilidadUrl = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/\?.*$/, ""))
+  .pipe(
+    z.url({ protocol: /^https$/, error: "SERVIENTREGA_TRAZABILIDAD_URL debe ser una URL https" }),
+  )
+  .optional()
+
 const configSchema = z.object({
   SERVIENTREGA_AMBIENTE: z.enum(["qa", "prod"], { error: "SERVIENTREGA_AMBIENTE debe ser qa o prod" }),
   SERVIENTREGA_USUARIO: credencial("SERVIENTREGA_USUARIO"),
   SERVIENTREGA_PASSWORD: credencial("SERVIENTREGA_PASSWORD"),
+  SERVIENTREGA_TRAZABILIDAD_URL: trazabilidadUrl,
 })
 
 export interface ConfigServientrega {
@@ -80,6 +98,7 @@ function parsearConfig(env: Env): { ok: true; config: ConfigServientrega } | { o
     SERVIENTREGA_AMBIENTE: env.SERVIENTREGA_AMBIENTE?.trim().toLowerCase(),
     SERVIENTREGA_USUARIO: env.SERVIENTREGA_USUARIO,
     SERVIENTREGA_PASSWORD: env.SERVIENTREGA_PASSWORD,
+    SERVIENTREGA_TRAZABILIDAD_URL: vacio(env.SERVIENTREGA_TRAZABILIDAD_URL) ? undefined : env.SERVIENTREGA_TRAZABILIDAD_URL,
   })
   if (!parsed.success) {
     return { ok: false, motivo: `${SERVIENTREGA_NO_CONFIGURADA}: ${parsed.error.issues[0]?.message ?? "configuración inválida"}` }
@@ -91,7 +110,10 @@ function parsearConfig(env: Env): { ok: true; config: ConfigServientrega } | { o
       ambiente,
       usuario: parsed.data.SERVIENTREGA_USUARIO,
       password: parsed.data.SERVIENTREGA_PASSWORD,
-      endpoints: ENDPOINTS[ambiente],
+      endpoints: {
+        ...ENDPOINTS[ambiente],
+        trazabilidad: parsed.data.SERVIENTREGA_TRAZABILIDAD_URL ?? ENDPOINTS[ambiente].trazabilidad,
+      },
     },
   }
 }
