@@ -13,6 +13,7 @@ import { PedidoPagosCard } from "@/components/admin/pedidos/pedido-pagos-card"
 import { HttpError } from "@/lib/http"
 import { can } from "@/server/auth/guard"
 import { requirePermission } from "@/server/auth/session"
+import { estadoIntegracion } from "@/server/integraciones/servientrega"
 import { toCents } from "@/server/services/_shared"
 import { listarProductos, listarServicios } from "@/server/services/catalogo"
 import { listarEnvios } from "@/server/services/envios"
@@ -184,7 +185,12 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           canDeletePago={can(user, "pagos", "delete") && !isOrderClosed}
         />
 
-        <PedidoEnviosCard envios={envios} canDeleteEnvio={can(user, "envios", "delete")} />
+        <PedidoEnviosCard
+          envios={envios}
+          canDeleteEnvio={can(user, "envios", "delete")}
+          canUpdateEnvio={can(user, "envios", "update")}
+          integracion={estadoIntegracion()}
+        />
       </div>
     </div>
   )

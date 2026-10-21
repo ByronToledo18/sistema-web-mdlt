@@ -51,6 +51,17 @@ Next.js 16 (App Router, Server Components + Server Actions) · React 19 · TypeS
    | `GEMINI_API_KEY` | Sí (catálogo IA) | Generación de diseños personalizados |
    | `NEXT_PUBLIC_APP_URL` | Recomendada | URL pública, usada en los enlaces de recuperación de contraseña |
    | `KV_REST_API_URL` / `KV_REST_API_TOKEN` (o `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) | En producción | Rate limiting. En desarrollo hay un respaldo en memoria |
+   | `SERVIENTREGA_AMBIENTE` | No | `qa` o `prod`. Sin ella, la integración con la API de Servientrega queda deshabilitada (la UI lo indica) |
+   | `SERVIENTREGA_USUARIO` / `SERVIENTREGA_PASSWORD` | Con `SERVIENTREGA_AMBIENTE` | Credenciales de Servicli del ambiente elegido |
+   | `SERVIENTREGA_REMITENTE_ID` | Para generar guías | RUC o cédula del remitente |
+   | `SERVIENTREGA_REMITENTE_RAZON_SOCIAL`, `SERVIENTREGA_REMITENTE_NOMBRE`, `SERVIENTREGA_REMITENTE_APELLIDO` | Para generar guías | Datos del remitente impresos en la guía |
+   | `SERVIENTREGA_REMITENTE_DIRECCION`, `SERVIENTREGA_REMITENTE_TELEFONO` | Para generar guías | Dirección y teléfono del remitente |
+   | `SERVIENTREGA_REMITENTE_CIUDAD_ID` | Para generar guías | Id de ciudad de Servientrega de origen (p. ej. `2` = QUITO (PICHINCHA)) |
+   | `SERVIENTREGA_REMITENTE_SECTOR` | No | Sector del remitente |
+   | `SERVIENTREGA_TRAZABILIDAD_URL` | No | Endpoint SOAP de trazabilidad (sin `?wsdl`). Por defecto, el del ambiente |
+   | `SERVIENTREGA_PROXY_URL` | No (para prod en Vercel Hobby) | Proxy de salida con IP fija, `http(s)://usuario:clave@host:puerto` (QuotaGuard Static, Fixie…). Si está, todas las llamadas a Servientrega salen por él |
+
+   Producción de Servientrega solo acepta IPs registradas: la solución recomendada es `SERVIENTREGA_PROXY_URL` (ver "Integración Servientrega" en `ARQUITECTURA.md` y [`docs/servientrega-api.md`](docs/servientrega-api.md)).
 
 4. Aplicar las migraciones de Drizzle (`drizzle/`): crean el schema completo y cargan los datos de referencia (roles, tarifas de envío y el servicio "Envío").
 
@@ -132,6 +143,6 @@ Los clientes del catálogo usan una sesión separada (portal), sin acceso al adm
 
 ## Base de datos
 
-PostgreSQL en Neon. Tablas principales: `roles`, `usuarios`, `clientes`, `productos`, `servicios`, `pedidos`, `pedido_items`, `pedido_facturas`, `pagos`, `envios`, `tarifas_envio`, `servientrega_cuenta`, `servientrega_detalle`, `proveedores`, `facturas_proveedor`, `nomina_mov`, `tickets`, `auditoria`, `disenos_personalizados`. El detalle está en [`docs/database-schema.md`](docs/database-schema.md).
+PostgreSQL en Neon. Tablas principales: `roles`, `usuarios`, `clientes`, `productos`, `servicios`, `pedidos`, `pedido_items`, `pedido_facturas`, `pagos`, `envios`, `tarifas_envio`, `servientrega_cuenta`, `servientrega_detalle`, `servientrega_rotulos`, `proveedores`, `facturas_proveedor`, `nomina_mov`, `tickets`, `auditoria`, `disenos_personalizados`. El detalle está en [`docs/database-schema.md`](docs/database-schema.md).
 
 Propietario: El Mundo de las Tutus
