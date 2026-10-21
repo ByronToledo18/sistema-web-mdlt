@@ -225,8 +225,23 @@ export async function actualizarEnvio(
 
 export async function eliminarEnvio(id: number): Promise<void> {
   try {
-    const eliminados = await db.delete(envios).where(eq(envios.id, id)).returning({ id: envios.id })
-    if (eliminados.length === 0) throw new HttpError(404, "Envío no encontrado")
+    // Una guía vigente en Servientrega quedaría huérfana: primero se anula.
+    const eliminados = await db
+      .delete(envios)
+      .where(
+        and(
+          eq(envios.id, id),
+          sql`(${envios.servientrega_estado} IS NULL OR ${envios.servientrega_estado} = 'anulada')`,
+        ),
+      )
+      .returning({ id: envios.id })
+    if (eliminados.length === 0) {
+      const [existe] = await db.select({ id: envios.id }).from(envios).where(eq(envios.id, id))
+      if (existe) {
+        throw new HttpError(400, "No se puede eliminar un envío con una guía de Servientrega vigente. Anúlala primero.")
+      }
+      throw new HttpError(404, "Envío no encontrado")
+    }
   } catch (error) {
     if (pgErrorCode(error) === PG_FOREIGN_KEY_VIOLATION) {
       throw new HttpError(400, "No se puede eliminar un envío que ya está cargado en la cuenta de Servientrega")
