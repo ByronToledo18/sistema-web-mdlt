@@ -2,7 +2,7 @@
 
 ## Visión general
 
-Una sola aplicación Next.js (App Router) desplegada en Vercel, con **tres áreas** separadas por ruta y por sesión:
+Una sola aplicación Next.js (App Router) desplegada en Vercel y, en paralelo, en un servidor propio de Oracle Cloud (Docker; ver [Despliegue](#despliegue)), con **tres áreas** separadas por ruta y por sesión:
 
 | Área | Ruta base | Autenticación |
 |---|---|---|
@@ -113,6 +113,7 @@ Producción de Servientrega (la API de guías en `swservicli.servientrega.com.ec
 1. **Proxy de salida con IP fija (recomendada, ya implementada)**: un servicio como QuotaGuard Static o Fixie da una IP fija que se registra en Servientrega. Basta con definir `SERVIENTREGA_PROXY_URL` (`http(s)://usuario:clave@host:puerto`): todas las llamadas (guías, PDFs y trazabilidad) salen por el proxy con `HTTP CONNECT` (`https-proxy-agent`). El túnel es TCP, así que el TLS sigue siendo de punta a punta con Servientrega y se valida igual (el proxy no ve el contenido ni las credenciales de Servicli); la URL del proxy se valida con Zod y nunca se loguea. Sin la variable, la conexión es directa. Costo: el plan del proveedor del proxy y un salto de red más.
 2. **Pedir una excepción a Servientrega**: que habiliten el acceso sin IP fija o por otro mecanismo (token, rango de IPs). Depende de su política.
 3. **Vercel Pro con Static IPs**: IPs de salida fijas para las funciones del proyecto. No requiere un proveedor extra, pero tiene el costo del plan Pro y del add-on.
+4. **Servidor propio (en curso)**: la app corre en Oracle Cloud con la IP reservada `149.130.164.213`, que es también su IP de salida: se registra esa IP en Servientrega y las llamadas salen directo, sin proxy. Fase 1 (pruebas, con Servientrega QA) en `149-130-164-213.sslip.io`; ver [`docs/deploy-oracle.md`](docs/deploy-oracle.md).
 
 ## Despliegue
 
@@ -120,6 +121,7 @@ Producción de Servientrega (la API de guías en `swservicli.servientrega.com.ec
 - Si se quiere un subdominio privado para el admin (ej. `admin.elmundodelastutus.com`), se resuelve con un rewrite por host en `proxy.ts`, dentro de la misma app.
 - El catálogo usa ISR (revalidate de 60 s) y se revalida on-demand cuando el admin edita productos o servicios.
 - Procedimiento de despliegue a producción: [`docs/deploy-produccion.md`](docs/deploy-produccion.md).
+- **Servidor propio (Oracle Cloud, ARM)**: la misma app en Docker Compose: `app` (Next `output: standalone`, que solo se activa con `NEXT_OUTPUT=standalone` en el `Dockerfile`; el build de Vercel no cambia), `nginx` (TLS, gzip, headers, redirect 80→443) y `certbot` (Let's Encrypt por webroot, renovación automática). El deploy sale de la PC con `scripts/deploy-oracle.sh` (`git archive` del commit → `~/mdlt/releases/<sha>`, build en el servidor con el `.env` como build secret, healthcheck y rollback). Allí el rate limiting usa memoria si no hay Upstash (una sola instancia), las imágenes optimizadas se cachean en un volumen (`.next/cache`) y Vercel Analytics no se carga. Detalle: [`docs/deploy-oracle.md`](docs/deploy-oracle.md).
 
 ## Stack tecnológico
 
@@ -133,4 +135,4 @@ Producción de Servientrega (la API de guías en `swservicli.servientrega.com.ec
 - **Archivos:** Vercel Blob.
 - **IA:** Google Gemini (`@google/genai`).
 - **UI:** shadcn/ui (Radix) + Tailwind CSS 4.
-- **Despliegue:** Vercel.
+- **Despliegue:** Vercel; servidor propio en Oracle Cloud con Docker Compose + nginx + Let's Encrypt.

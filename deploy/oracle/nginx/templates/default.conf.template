@@ -1,0 +1,96 @@
+# Proxy inverso de El Mundo de las Tutus (servidor Oracle).
+#
+# Es una plantilla: la imagen oficial de nginx la procesa con envsubst al
+# arrancar y reemplaza solo las variables definidas en el contenedor
+# (${DOMAIN}); las de nginx ($host, $remote_addr…) quedan intactas.
+
+# Uploads: el máximo de la app es 5 MB por imagen (app/api/upload). Se deja
+# margen para el multipart.
+client_max_body_size 10m;
+
+server_tokens off;
+
+gzip on;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_proxied any;
+gzip_vary on;
+gzip_types
+    text/plain text/css text/xml text/javascript
+    application/javascript application/json application/xml application/rss+xml
+    application/manifest+json image/svg+xml font/ttf font/otf;
+
+upstream mdlt_app {
+    server app:3000;
+    keepalive 16;
+}
+
+# ---------------------------------------------------------------- HTTP (80)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    # Desafío HTTP-01 de Let's Encrypt (emisión y renovación por webroot).
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# Cualquier otro Host (escaneos por IP, dominios ajenos): se cierra sin responder.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / {
+        return 444;
+    }
+}
+
+# --------------------------------------------------------------- HTTPS (443)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # Headers básicos de seguridad.
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location / {
+        proxy_pass http://mdlt_app;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # nginx es el borde: X-Forwarded-For se REEMPLAZA por la IP real del
+        # cliente (lib/rate-limit.ts toma el primer valor; si se agregara con
+        # $proxy_add_x_forwarded_for, el cliente podría falsificarlo).
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        # Streaming de Server Components / Suspense: sin buffer de respuesta.
+        proxy_buffering off;
+        # La generación de guías de Servientrega y el diseño por IA pueden tardar.
+        proxy_read_timeout 120s;
+    }
+}

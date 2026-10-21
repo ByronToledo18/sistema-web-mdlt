@@ -2,6 +2,10 @@ import { withSentryConfig } from "@sentry/nextjs/config"
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Build portable para el servidor propio (Docker en Oracle Cloud): el
+  // Dockerfile define NEXT_OUTPUT=standalone. En Vercel la variable no existe
+  // y el build queda igual que siempre.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   images: {
     // Imágenes de productos, servicios y diseños IA subidas a Vercel Blob.
     // Debe coincidir con OPTIMIZABLE_HOST en lib/images.ts.

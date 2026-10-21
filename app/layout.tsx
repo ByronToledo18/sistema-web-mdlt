@@ -24,7 +24,9 @@ export default function RootLayout({
       <body className={`font-sans antialiased`}>
         <ResizeObserverErrorSuppressor />
         {children}
-        <Analytics />
+        {/* Vercel Web Analytics solo existe en Vercel: en el servidor propio
+            (Oracle) el script /_vercel/insights no está y daría 404. */}
+        {process.env.VERCEL ? <Analytics /> : null}
       </body>
     </html>
   )
