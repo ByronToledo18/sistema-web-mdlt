@@ -125,6 +125,8 @@ erDiagram
         string contenido
         timestamp guia_generada_at
         timestamp guia_anulada_at
+        string servientrega_estado_actual "ultima consulta de trazabilidad"
+        timestamp servientrega_consultado_at
     }
 
     SERVIENTREGA_ROTULOS {

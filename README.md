@@ -58,8 +58,10 @@ Next.js 16 (App Router, Server Components + Server Actions) · React 19 · TypeS
    | `SERVIENTREGA_REMITENTE_DIRECCION`, `SERVIENTREGA_REMITENTE_TELEFONO` | Para generar guías | Dirección y teléfono del remitente |
    | `SERVIENTREGA_REMITENTE_CIUDAD_ID` | Para generar guías | Id de ciudad de Servientrega de origen (p. ej. `2` = QUITO (PICHINCHA)) |
    | `SERVIENTREGA_REMITENTE_SECTOR` | No | Sector del remitente |
+   | `SERVIENTREGA_TRAZABILIDAD_URL` | No | Endpoint SOAP de trazabilidad (sin `?wsdl`). Por defecto, el del ambiente |
+   | `SERVIENTREGA_PROXY_URL` | No (para prod en Vercel Hobby) | Proxy de salida con IP fija, `http(s)://usuario:clave@host:puerto` (QuotaGuard Static, Fixie…). Si está, todas las llamadas a Servientrega salen por él |
 
-   Producción de Servientrega solo acepta IPs registradas: ver "Integración Servientrega" en `ARQUITECTURA.md` y [`docs/servientrega-api.md`](docs/servientrega-api.md).
+   Producción de Servientrega solo acepta IPs registradas: la solución recomendada es `SERVIENTREGA_PROXY_URL` (ver "Integración Servientrega" en `ARQUITECTURA.md` y [`docs/servientrega-api.md`](docs/servientrega-api.md)).
 
 4. Aplicar las migraciones de Drizzle (`drizzle/`): crean el schema completo y cargan los datos de referencia (roles, tarifas de envío y el servicio "Envío").
 

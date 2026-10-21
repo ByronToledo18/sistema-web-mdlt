@@ -1,6 +1,6 @@
 # API de Servientrega (Servicli) — resumen
 
-Resumen del documento oficial *"API para integración de Clientes Corporativos con Servicli"* (MEST 17062024-1, v02), más el formato real de las respuestas observado en QA en octubre de 2026. La integración vive en `server/integraciones/servientrega/` y `server/services/servientrega.ts`; la arquitectura está en `ARQUITECTURA.md`, sección "Integración Servientrega".
+Resumen de los documentos oficiales *"API para integración de Clientes Corporativos con Servicli"* (MEST 17062024-1, v02) y *"Servicio web – Trazabilidad de envíos"* (MEST 17062024, v02), más el formato real de las respuestas observado en QA en octubre de 2026. La integración vive en `server/integraciones/servientrega/` y `server/services/servientrega.ts`; la arquitectura está en `ARQUITECTURA.md`, sección "Integración Servientrega".
 
 Las credenciales de QA las entrega el facilitador comercial corporativo de Servientrega. **Nunca van en el repositorio**: solo en variables de entorno (ver `README.md`).
 
@@ -24,9 +24,11 @@ Otros endpoints documentados y no usados por el sistema: `GuiaRetornoNacional` (
 - **QA** se publica por IP, pero su certificado (Sectigo) es válido para `servientrega.com.ec`. El cliente se conecta con SNI `servientrega.com.ec` y valida el certificado contra ese nombre (`checkServerIdentity`). La verificación TLS **no** se desactiva.
 - **Producción** (`swservicli.servientrega.com.ec`) valida de forma normal (certificado con `*.servientrega.com.ec`; verificado el 2026-10-20).
 
-### IP fija (producción)
+### IP fija (producción) y proxy de salida
 
-Producción solo responde a IPs públicas registradas en Servientrega. QA respondió desde la PC de desarrollo; no está verificado si responde desde las IPs de Vercel. Ver en `ARQUITECTURA.md` el problema con Vercel Hobby y las opciones.
+Producción (la API de guías y la trazabilidad) solo responde a IPs públicas registradas en Servientrega. QA respondió desde la PC de desarrollo; no está verificado si responde desde las IPs de Vercel.
+
+Con `SERVIENTREGA_PROXY_URL` (`http(s)://usuario:clave@host:puerto`, p. ej. QuotaGuard Static o Fixie) **todas** las llamadas (guías, PDFs y trazabilidad) salen por ese proxy con `HTTP CONNECT`, y se registra en Servientrega la IP fija del proxy. El túnel es TCP: el TLS sigue siendo de punta a punta con Servientrega y se valida igual que sin proxy (en QA, contra `servientrega.com.ec`). La URL del proxy lleva credenciales: nunca se loguea. Sin la variable, la conexión es directa. Detalle y alternativas en `ARQUITECTURA.md`.
 
 ## Generar guía (POST guiawebs)
 
@@ -97,3 +99,54 @@ Todas responden `Content-Type: application/json`.
 | 8 | En procesamiento (histórico) |
 | 9 | Devuelto al remitente |
 | 99 | Generado por API |
+
+## Trazabilidad (servicio SOAP)
+
+Servicio aparte, en otro host (certificado propio `*.appsiscore.com`, validación TLS normal). No usa usuario ni contraseña, pero en producción también exige la IP registrada.
+
+| Ambiente | Endpoint (WSDL con `?wsdl`) |
+|---|---|
+| Pruebas | `https://servientrega-ecuador-prueba.appsiscore.com/app/ws/server_trazabilidad.php` |
+| Producción | `https://servientrega-ecuador.appsiscore.com/app/ws/server_trazabilidad.php` |
+
+`SERVIENTREGA_TRAZABILIDAD_URL` reemplaza el endpoint del ambiente (se acepta con o sin `?wsdl`).
+
+- **Método**: `ConsultarGuiaImagen` (RPC/encoded), con un parámetro `guia` (`xsd:string`, el número de guía). `SOAPAction`: `<endpoint>/ConsultarGuiaImagen`. Namespace: `https://servientrega-ecuador.appsiscore.com/app/ws/` (el mismo en pruebas y producción).
+- **Respuesta**: `<Result>` con el XML de la guía (`ConsultarGuiaImagenResult`). La documentación lo muestra en CDATA; QA lo devuelve **escapado con entidades** (`&lt;NumGui&gt;…`), en `text/xml; charset=ISO-8859-1`. El sistema acepta las dos formas.
+- **Campos usados**: `NumGui`, `FecEnv`, `FechaProbable`, `CiuRem`, `CiuDes`, `IdEstAct`, `EstAct`, `FecEst`, `NomRec` (o `quienrecibe`, que aparece en QA) y los movimientos `Mov/InformacionMov` (`NomMov`, `OriMov`, `DesMov`, `FecMov`). También trae `NomRem`/`DirRem`, `NomDes`/`DirDes`, `NumPie`, `Placa`, `IdGPS` y `MensajeBuscarImagen` (sobre la imagen de la prueba de entrega en base64, que el sistema no usa).
+- **Sin datos**: en QA (2026-10-20) cualquier número, exista o no (incluido el ejemplo de la documentación), devuelve la estructura vacía con `IdEstAct` = 3 y `EstAct`, `FecEnv` y `Mov` vacíos. El sistema lo trata como "sin datos" y conserva el último estado conocido.
+- **Errores**: un SOAP Fault (`faultstring`) se muestra como rechazo.
+
+Ejemplo de la documentación (resumido):
+
+```xml
+<ConsultarGuiaImagenResult>
+  <FechaProbable>2020-06-23</FechaProbable>
+  <NumGui>701239153</NumGui>
+  <FecEnv>2020-06-17</FecEnv>
+  <CiuRem>CUENCA -AZUAY</CiuRem>
+  <CiuDes>GUAYAQUIL -GUAYAS</CiuDes>
+  <IdEstAct>3</IdEstAct>
+  <EstAct>Generado Cliente Corporativo</EstAct>
+  <FecEst>2020-06-17</FecEst>
+  <NomRec/>
+  <Mov>
+    <InformacionMov>
+      <NomMov>Generado Cliente Corporativo</NomMov>
+      <OriMov>CUENCA -AZUAY</OriMov>
+      <DesMov>Generado Cliente Corporativo</DesMov>
+      <FecMov>2020-06-17 15:24</FecMov>
+    </InformacionMov>
+  </Mov>
+  <MensajeBuscarImagen>Esta guía no tiene prueba de entrega digitalizada...</MensajeBuscarImagen>
+</ConsultarGuiaImagenResult>
+```
+
+Estados de trazabilidad que lista la documentación (texto de `EstAct`/`NomMov`): Reportado entregado en app; Inventario en centro logístico; Ingreso interno a centro logístico; Ingresando operativo a centro logístico; Ingresando de recolección; Generado en {ciudad} agencia {agencia}; Entregado a remitente; En ruta a centro logístico; En distribución a cliente; Devolución de distribución {motivo}; Certificación de prueba de entrega.
+
+### Rastreo público
+
+Sin API ni credenciales, para el cliente (portal) y el admin:
+
+- Por guía: `https://www.servientrega.com.ec/Tracking/?guia=<numero>&tipo=GUIA`
+- Por guía de referencia: `https://www.servientrega.com.ec/Tracking/?guia=<referencia>&tipo=REFERENCIA`
