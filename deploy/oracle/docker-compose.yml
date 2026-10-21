@@ -1,0 +1,90 @@
+# El Mundo de las Tutus en el servidor propio (Oracle Cloud, ARM).
+# Ver docs/deploy-oracle.md.
+#
+# Se usa siempre con el .env del servidor para interpolar (DOMAIN,
+# NEXT_PUBLIC_*), y con RELEASE = sha del commit (tag de la imagen):
+#
+#   RELEASE=<sha> docker compose -p mdlt --env-file ~/mdlt/shared/.env \
+#     -f ~/mdlt/current/deploy/oracle/docker-compose.yml up -d --build
+#
+# scripts/deploy-oracle.sh lo hace por ti.
+
+name: mdlt
+
+services:
+  app:
+    image: mdlt-app:${RELEASE:-latest}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Falta NEXT_PUBLIC_APP_URL en shared/.env}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-}
+      # El .env del servidor llega al build como secreto (no queda en capas).
+      secrets:
+        - app_env
+    restart: unless-stopped
+    env_file:
+      - ${MDLT_HOME:-/home/ubuntu/mdlt}/shared/.env
+    volumes:
+      # Cache de Next en self-hosting: imágenes optimizadas (cache/images) y
+      # fetch-cache. Sobrevive a los deploys.
+      - next_cache:/app/.next/cache
+    expose:
+      - "3000"
+    stop_grace_period: 30s
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Falta DOMAIN en shared/.env}
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ${MDLT_HOME:-/home/ubuntu/mdlt}/shared/certbot/conf:/etc/letsencrypt:ro
+      - ${MDLT_HOME:-/home/ubuntu/mdlt}/shared/certbot/www:/var/www/certbot:ro
+    # Recarga cada 6 h para tomar el certificado renovado por certbot.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        (while :; do sleep 6h; nginx -s reload; done) &
+        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+    logging: *logging
+
+  certbot:
+    image: certbot/certbot:v4.2.0
+    restart: unless-stopped
+    volumes:
+      - ${MDLT_HOME:-/home/ubuntu/mdlt}/shared/certbot/conf:/etc/letsencrypt
+      - ${MDLT_HOME:-/home/ubuntu/mdlt}/shared/certbot/www:/var/www/certbot
+    # Renueva (si faltan < 30 días) cada 12 h por webroot.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        trap exit TERM
+        while :; do
+          certbot renew --webroot -w /var/www/certbot --quiet
+          sleep 12h & wait $${!}
+        done
+    logging: *logging
+
+secrets:
+  app_env:
+    file: ${MDLT_HOME:-/home/ubuntu/mdlt}/shared/.env
+
+volumes:
+  next_cache:

@@ -1,0 +1,39 @@
+# Secretos: nunca entran al contexto del build (el .env del servidor llega
+# como build secret, ver Dockerfile).
+.env
+.env*
+**/.env*
+
+# Artefactos y dependencias (se instalan/generan dentro de la imagen)
+.next
+**/node_modules
+out
+build
+*.tsbuildinfo
+next-env.d.ts
+
+# Repositorio y herramientas
+.git
+.github
+.vercel
+.claude
+.agents
+graphify-out
+plans
+
+# Tests
+tests
+e2e
+test-results
+playwright-report
+playwright
+playwright.config.ts
+vitest.config.mts
+coverage
+
+# Deploy (no lo necesita la imagen de la app)
+deploy
+Dockerfile
+.dockerignore
+*.md
+!README.md

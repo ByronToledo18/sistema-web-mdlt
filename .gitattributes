@@ -1,0 +1,6 @@
+# Archivos que se ejecutan o se leen en Linux (Docker, nginx, bash): siempre LF,
+# también al empaquetarlos con `git archive` desde Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+deploy/** text eol=lf
