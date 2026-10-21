@@ -40,12 +40,16 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
     NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT} \
     NEXT_OUTPUT=standalone
 
-# El resto (DATABASE_URL, JWT_SECRET, SENTRY_AUTH_TOKEN…) solo existe dentro
-# de este RUN: node --env-file lo carga sin pasar por el shell (los valores no
-# se interpretan) y las variables ya definidas arriba tienen prioridad.
-RUN --mount=type=secret,id=app_env,required=true \
+# El resto (DATABASE_URL, JWT_SECRET, SENTRY_AUTH_TOKEN…) solo existe durante
+# este RUN: el secreto se monta como .env.production.local, que Next carga en
+# el build. Ese nombre NO se copia a .next/standalone (Next solo copia .env y
+# .env.production), y las variables ya definidas arriba tienen prioridad.
+# (node --env-file no sirve: Next lo hereda en NODE_OPTIONS de sus workers y
+# Node lo rechaza.)
+RUN --mount=type=secret,id=app_env,required=true,target=/app/.env.production.local \
     --mount=type=cache,id=mdlt-next-build-cache,target=/app/.next/cache \
-    node --env-file=/run/secrets/app_env node_modules/next/dist/bin/next build
+    node node_modules/next/dist/bin/next build \
+ && test ! -e .next/standalone/.env.production.local
 
 # ---------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS runner
