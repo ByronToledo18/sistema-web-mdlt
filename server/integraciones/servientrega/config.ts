@@ -12,6 +12,8 @@ import { ServientregaError } from "./errores"
 // - SERVIENTREGA_USUARIO / SERVIENTREGA_PASSWORD: credenciales de Servicli.
 // - SERVIENTREGA_TRAZABILIDAD_URL (opcional): endpoint SOAP de trazabilidad;
 //   por defecto el del ambiente.
+// - SERVIENTREGA_PROXY_URL (opcional): proxy de salida con IP fija para
+//   producción en Vercel Hobby. Ver ARQUITECTURA.md.
 // - SERVIENTREGA_REMITENTE_*: datos del remitente de las guías. Solo los exige
 //   la generación de guías; listar ciudades, anular y descargar funcionan sin ellos.
 //
@@ -68,11 +70,28 @@ const trazabilidadUrl = z
   )
   .optional()
 
+// Proxy de salida con IP fija (QuotaGuard Static, Fixie…):
+// http(s)://usuario:clave@host:puerto. Los mensajes nunca repiten el valor
+// (lleva credenciales).
+const proxyUrl = z
+  .string()
+  .trim()
+  .refine((v) => {
+    try {
+      const u = new URL(v)
+      return (u.protocol === "http:" || u.protocol === "https:") && !!u.hostname && !!u.port && u.pathname.length <= 1
+    } catch {
+      return false
+    }
+  }, "SERVIENTREGA_PROXY_URL debe tener el formato http(s)://usuario:clave@host:puerto")
+  .optional()
+
 const configSchema = z.object({
   SERVIENTREGA_AMBIENTE: z.enum(["qa", "prod"], { error: "SERVIENTREGA_AMBIENTE debe ser qa o prod" }),
   SERVIENTREGA_USUARIO: credencial("SERVIENTREGA_USUARIO"),
   SERVIENTREGA_PASSWORD: credencial("SERVIENTREGA_PASSWORD"),
   SERVIENTREGA_TRAZABILIDAD_URL: trazabilidadUrl,
+  SERVIENTREGA_PROXY_URL: proxyUrl,
 })
 
 export interface ConfigServientrega {
@@ -80,6 +99,8 @@ export interface ConfigServientrega {
   usuario: string
   password: string
   endpoints: Endpoints
+  // Si está, todas las llamadas salen por este proxy (HTTP CONNECT).
+  proxyUrl: string | null
 }
 
 type Env = Record<string, string | undefined>
@@ -99,6 +120,7 @@ function parsearConfig(env: Env): { ok: true; config: ConfigServientrega } | { o
     SERVIENTREGA_USUARIO: env.SERVIENTREGA_USUARIO,
     SERVIENTREGA_PASSWORD: env.SERVIENTREGA_PASSWORD,
     SERVIENTREGA_TRAZABILIDAD_URL: vacio(env.SERVIENTREGA_TRAZABILIDAD_URL) ? undefined : env.SERVIENTREGA_TRAZABILIDAD_URL,
+    SERVIENTREGA_PROXY_URL: vacio(env.SERVIENTREGA_PROXY_URL) ? undefined : env.SERVIENTREGA_PROXY_URL,
   })
   if (!parsed.success) {
     return { ok: false, motivo: `${SERVIENTREGA_NO_CONFIGURADA}: ${parsed.error.issues[0]?.message ?? "configuración inválida"}` }
@@ -114,6 +136,7 @@ function parsearConfig(env: Env): { ok: true; config: ConfigServientrega } | { o
         ...ENDPOINTS[ambiente],
         trazabilidad: parsed.data.SERVIENTREGA_TRAZABILIDAD_URL ?? ENDPOINTS[ambiente].trazabilidad,
       },
+      proxyUrl: parsed.data.SERVIENTREGA_PROXY_URL ?? null,
     },
   }
 }

@@ -47,7 +47,11 @@ function aHttpError(error: unknown): unknown {
     case "timeout":
       return new HttpError(424, "Servientrega no respondió a tiempo. Intenta de nuevo en unos minutos.")
     case "red":
-      return new HttpError(424, "No se pudo conectar con Servientrega. Intenta de nuevo en unos minutos.")
+      // 407: el proxy de salida rechazó sus credenciales (mensaje propio).
+      return new HttpError(
+        424,
+        error.status === 407 ? error.message : "No se pudo conectar con Servientrega. Intenta de nuevo en unos minutos.",
+      )
     case "rechazada":
       return new HttpError(424, `Servientrega: ${error.message}`)
     default:

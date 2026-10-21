@@ -2,6 +2,7 @@ import "server-only"
 
 import https from "node:https"
 import tls from "node:tls"
+import { HttpsProxyAgent } from "https-proxy-agent"
 import { logger } from "@/lib/logger"
 import type { ConfigServientrega } from "./config"
 import { ServientregaError } from "./errores"
@@ -17,6 +18,10 @@ import { ServientregaError } from "./errores"
 //   por redactar().
 // - Timeout total por intento (20 s) y un reintento solo en GET (idempotente).
 //   Un POST o DELETE fallido no se repite: podría generar o anular dos veces.
+// - Con SERVIENTREGA_PROXY_URL todo sale por ese proxy (HTTP CONNECT, con
+//   https-proxy-agent). El túnel es TCP: el TLS sigue siendo de punta a punta
+//   con Servientrega y se valida igual (mismo servername/checkServerIdentity).
+//   La URL del proxy lleva credenciales: tampoco se loguea.
 
 export const TIMEOUT_MS = 20_000
 const MAX_BYTES = 15 * 1024 * 1024
@@ -90,6 +95,8 @@ export interface SolicitudHttps {
   reintentable: boolean
   // Quita secretos de cualquier texto que vaya al log o a un error.
   redactar: (texto: string) => string
+  // Proxy de salida (null = conexión directa).
+  proxy: string | null
 }
 
 export interface RespuestaCruda {
@@ -97,6 +104,34 @@ export interface RespuestaCruda {
   contentType: string
   // Bytes tal cual: cada llamador decodifica según su charset.
   cuerpo: Buffer
+}
+
+// Un agente por URL de proxy (reutiliza la configuración entre peticiones).
+const AGENTES_KEY = "__mdltServientregaProxyAgents"
+const agentes = globalThis as typeof globalThis & { [AGENTES_KEY]?: Map<string, https.Agent> }
+export function agenteProxy(proxy: string): https.Agent {
+  agentes[AGENTES_KEY] ??= new Map()
+  let agente = agentes[AGENTES_KEY].get(proxy)
+  if (!agente) {
+    agente = new HttpsProxyAgent(proxy) as unknown as https.Agent
+    agentes[AGENTES_KEY].set(proxy, agente)
+  }
+  return agente
+}
+
+// Usuario y contraseña del proxy, tal cual y codificados en la URL.
+export function redactarProxy(texto: string, proxy: string | null): string {
+  if (!proxy) return texto
+  let salida = texto.split(proxy).join("[PROXY]")
+  try {
+    const u = new URL(proxy)
+    for (const secreto of [u.password, u.username, decodeURIComponent(u.password), decodeURIComponent(u.username)]) {
+      if (secreto) salida = salida.split(secreto).join("[REDACTADO]")
+    }
+  } catch {
+    // La config ya validó la URL.
+  }
+  return salida
 }
 
 function unIntento(s: SolicitudHttps): Promise<RespuestaCruda> {
@@ -117,6 +152,8 @@ function unIntento(s: SolicitudHttps): Promise<RespuestaCruda> {
           ...s.headers,
           ...(s.cuerpo !== undefined ? { "Content-Length": Buffer.byteLength(s.cuerpo) } : {}),
         },
+        // Sin proxy, el agente global (conexión directa).
+        ...(s.proxy ? { agent: agenteProxy(s.proxy) } : {}),
         ...s.tls,
       },
       (res) => {
@@ -173,11 +210,19 @@ const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // Un intento más en las lecturas (también ante un 5xx); el status de la
 // última respuesta se devuelve tal cual para que el llamador lo interprete.
-export async function solicitarHttps(s: SolicitudHttps): Promise<RespuestaCruda> {
+export async function solicitarHttps(solicitud: SolicitudHttps): Promise<RespuestaCruda> {
+  const s = { ...solicitud, redactar: (t: string) => redactarProxy(solicitud.redactar(t), solicitud.proxy) }
   const intentos = s.reintentable ? 2 : 1
   for (let intento = 1; ; intento++) {
     try {
       const respuesta = await unIntento(s)
+      if (respuesta.status === 407 && s.proxy) {
+        throw new ServientregaError(
+          "red",
+          "El proxy de salida rechazó la conexión (HTTP 407): revisa las credenciales de SERVIENTREGA_PROXY_URL",
+          407,
+        )
+      }
       if (respuesta.status >= 500 && intento < intentos) {
         logger.warn(CONTEXTO, `${s.operacion}: HTTP ${respuesta.status}, reintentando`, { intento })
         await pausa(PAUSA_REINTENTO_MS)
@@ -212,6 +257,7 @@ export async function enviar(config: ConfigServientrega, peticion: Peticion): Pr
     operacion: peticion.operacion,
     reintentable: peticion.metodo === "GET",
     redactar: (texto) => redactar(texto, config),
+    proxy: config.proxyUrl,
   })
   return { status: respuesta.status, cuerpo: respuesta.cuerpo.toString("utf8") }
 }

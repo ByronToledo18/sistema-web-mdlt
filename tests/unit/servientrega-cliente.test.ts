@@ -1,7 +1,7 @@
 import type { EventEmitter } from "node:events"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { anulacionExitosa, crearClienteServientrega, limpiarCacheCiudades } from "@/server/integraciones/servientrega/cliente"
-import { leerConfig } from "@/server/integraciones/servientrega/config"
+import { estadoIntegracion, leerConfig } from "@/server/integraciones/servientrega/config"
 import { ServientregaError } from "@/server/integraciones/servientrega/errores"
 import { opcionesTls, redactar, segmentoParametros, TIMEOUT_MS } from "@/server/integraciones/servientrega/http"
 
@@ -65,6 +65,13 @@ vi.mock("node:https", async () => {
   return { default: { request }, request }
 })
 
+
+// El agente de proxy se reemplaza por uno falso que solo recuerda su URL.
+vi.mock("https-proxy-agent", () => ({
+  HttpsProxyAgent: class {
+    constructor(public proxy: string) {}
+  },
+}))
 
 // Contraseña con caracteres que cambian al codificarse en la URL.
 const PASSWORD = "Cl@ve/ñ 9"
@@ -412,5 +419,91 @@ describe("consultarTrazabilidad (SOAP)", () => {
     const resultado = capturar(crearClienteServientrega(configQa).consultarTrazabilidad("1"))
     await vi.advanceTimersByTimeAsync(TIMEOUT_MS * 2 + 1_000)
     expect(await resultado).toMatchObject({ tipo: "timeout" })
+  })
+})
+
+describe("proxy de salida (SERVIENTREGA_PROXY_URL)", () => {
+  const PROXY = "http://proxyuser:pr0xy-s3cret@proxy.example.test:9293"
+  const conProxy = (ambiente: "qa" | "prod") =>
+    leerConfig({
+      SERVIENTREGA_AMBIENTE: ambiente,
+      SERVIENTREGA_USUARIO: USUARIO,
+      SERVIENTREGA_PASSWORD: PASSWORD,
+      SERVIENTREGA_PROXY_URL: PROXY,
+    })
+
+  test("sin proxy: conexión directa (sin agente)", async () => {
+    estado.responder = (p) => p.responder(200, JSON.stringify([{ id: 2, nombre: "QUITO (PICHINCHA)" }]))
+    await crearClienteServientrega(configQa).listarCiudades()
+    expect(configQa.proxyUrl).toBeNull()
+    expect(capturadas[0].opciones.agent).toBeUndefined()
+  })
+
+  test("con proxy: REST, PDF y SOAP usan el agente y conservan la verificación TLS del servidor final", async () => {
+    const config = conProxy("qa")
+    const cliente = crearClienteServientrega(config)
+    estado.responder = (p) => p.responder(200, JSON.stringify([{ id: 2, nombre: "QUITO (PICHINCHA)" }]))
+    await cliente.listarCiudades()
+    estado.responder = (p) => p.responder(201, JSON.stringify({ guia: 1, mensaje: "", archivoEncriptado: PDF_B64 }))
+    await cliente.obtenerPdfGuia("1")
+    estado.responder = (p) => p.responder(200, "<Envelope><Body><Result></Result></Body></Envelope>", "text/xml")
+    await cliente.consultarTrazabilidad("1")
+
+    expect(capturadas).toHaveLength(3)
+    for (const { opciones } of capturadas) {
+      expect((opciones.agent as { proxy?: string } | undefined)?.proxy).toBe(PROXY)
+      expect(opciones).not.toHaveProperty("rejectUnauthorized")
+    }
+    // REST y PDF de QA: mismo SNI y validación contra servientrega.com.ec.
+    for (const { opciones } of capturadas.slice(0, 2)) {
+      expect(opciones.servername).toBe("servientrega.com.ec")
+      const check = opciones.checkServerIdentity as (h: string, c: unknown) => Error | undefined
+      expect(check("181.39.87.158", { subject: {}, subjectaltname: "DNS:otro.com" })).toBeInstanceOf(Error)
+    }
+    // Un solo agente reutilizado.
+    expect(capturadas[0].opciones.agent).toBe(capturadas[2].opciones.agent)
+  })
+
+  test("prod con proxy: el destino sigue siendo el host de Servientrega", async () => {
+    estado.responder = (p) => p.responder(201, JSON.stringify({ id: 1, msj: "OK" }))
+    await crearClienteServientrega(conProxy("prod")).generarGuia(guiaInput)
+    expect(capturadas[0].url.host).toBe("swservicli.servientrega.com.ec:5052")
+    expect((capturadas[0].opciones.agent as { proxy: string }).proxy).toBe(PROXY)
+  })
+
+  test("la URL y las credenciales del proxy no aparecen en logs ni errores", async () => {
+    estado.responder = (p) =>
+      p.fallar(Object.assign(new Error(`tunneling socket could not be established ${PROXY} proxyuser pr0xy-s3cret`), { code: undefined as unknown as string }))
+    const error = await capturar(crearClienteServientrega(conProxy("qa")).listarCiudades())
+    for (const texto of [error.message, ...logs]) {
+      expect(texto).not.toContain("pr0xy-s3cret")
+      expect(texto).not.toContain("proxyuser")
+      sinSecretos(texto)
+    }
+  })
+
+  test("407 del proxy → error de red claro, sin reintentar con las mismas credenciales en POST", async () => {
+    estado.responder = (p) => p.responder(407, "", "text/html")
+    await expect(crearClienteServientrega(conProxy("qa")).generarGuia(guiaInput)).rejects.toMatchObject({
+      tipo: "red",
+      status: 407,
+      message: expect.stringContaining("SERVIENTREGA_PROXY_URL"),
+    })
+    expect(capturadas).toHaveLength(1)
+  })
+
+  test("URL de proxy inválida: integración deshabilitada sin repetir el valor", () => {
+    for (const malo of ["ftp://u:p@h:21", "http://u:clave-secreta@host-sin-puerto", "no es una url"]) {
+      const estado = estadoIntegracion({
+        SERVIENTREGA_AMBIENTE: "qa",
+        SERVIENTREGA_USUARIO: "u",
+        SERVIENTREGA_PASSWORD: "p",
+        SERVIENTREGA_PROXY_URL: malo,
+      })
+      expect(estado.habilitada).toBe(false)
+      const motivo = estado.habilitada ? "" : estado.motivo
+      expect(motivo).toContain("SERVIENTREGA_PROXY_URL")
+      expect(motivo).not.toContain("clave-secreta")
+    }
   })
 })

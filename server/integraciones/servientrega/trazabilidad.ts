@@ -187,12 +187,14 @@ export async function consultarTrazabilidad(config: ConfigServientrega, numeroGu
       SOAPAction: `"${url.origin}${url.pathname}/ConsultarGuiaImagen"`,
     },
     cuerpo: sobreConsulta(numeroGuia),
-    // Certificado propio del host (*.appsiscore.com): validación por defecto.
+    // Certificado propio del host (*.appsiscore.com): validación por defecto,
+    // también a través del proxy.
     tls: {},
     operacion: "trazabilidad",
     // Es una consulta: se puede repetir sin efectos.
     reintentable: true,
     redactar: (texto) => texto,
+    proxy: config.proxyUrl,
   })
   const texto = decodificarRespuesta(respuesta.cuerpo, respuesta.contentType)
   // Un SOAP Fault llega con 500 y cuerpo XML: lo interpreta el parser.
