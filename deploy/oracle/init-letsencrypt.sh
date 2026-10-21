@@ -44,7 +44,9 @@ CONF="$MDLT_HOME/shared/certbot/conf"
 LIVE="$CONF/live/$DOMAIN"
 mkdir -p "$CONF" "$MDLT_HOME/shared/certbot/www"
 
-if [ -f "$LIVE/fullchain.pem" ] && [ ! -f "$LIVE/.dummy" ] && [ "$FORCE" -eq 0 ]; then
+# El certificado real es un symlink a archive/ (700, de root): se comprueba con
+# -L, que no necesita leer el destino. El temporal es un archivo normal.
+if [ -L "$LIVE/fullchain.pem" ] && [ ! -e "$LIVE/.dummy" ] && [ "$FORCE" -eq 0 ]; then
   echo "Ya existe un certificado para $DOMAIN (usa --force para reemitir)."
   exit 0
 fi

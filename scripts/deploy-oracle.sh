@@ -86,7 +86,9 @@ levantar() { # levanta la release $1 (nginx solo si ya hay certificado)
   dominio="$(leer_env DOMAIN)"
   compose "$rel" up -d --remove-orphans app certbot
   esperar_sano "$rel" || return 1
-  if [ -f "$MDLT_HOME/shared/certbot/conf/live/$dominio/fullchain.pem" ]; then
+  # live/<dominio>/fullchain.pem es un symlink a archive/ (700, de root): -L
+  # funciona sin poder leer el destino; -f fallaría y reemitiría el certificado.
+  if [ -L "$MDLT_HOME/shared/certbot/conf/live/$dominio/fullchain.pem" ]; then
     compose "$rel" up -d --remove-orphans nginx
   else
     log "No hay certificado para $dominio: primera emisión"
